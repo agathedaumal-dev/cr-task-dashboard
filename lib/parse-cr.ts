@@ -151,14 +151,21 @@ export class AnthropicClient implements LlmClient {
 // Picks whichever provider has a configured key. Prefers Anthropic since it's the
 // easier self-service path (no Google Cloud project required).
 export function getConfiguredLlmClient(): LlmClient {
-  if (process.env.OPENROUTER_API_KEY) {
-    return new OpenRouterClient(process.env.OPENROUTER_API_KEY);
+  // .trim() guards against copy-paste whitespace/newlines in env var values
+  // (a real cause of "Missing Authentication header" style 401s — the key
+  // looks present but the actual header value is corrupted).
+  const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
+  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  const geminiKey = process.env.GEMINI_API_KEY?.trim();
+
+  if (openrouterKey) {
+    return new OpenRouterClient(openrouterKey, process.env.OPENROUTER_MODEL?.trim());
   }
-  if (process.env.ANTHROPIC_API_KEY) {
-    return new AnthropicClient(process.env.ANTHROPIC_API_KEY);
+  if (anthropicKey) {
+    return new AnthropicClient(anthropicKey);
   }
-  if (process.env.GEMINI_API_KEY) {
-    return new GeminiClient(process.env.GEMINI_API_KEY);
+  if (geminiKey) {
+    return new GeminiClient(geminiKey);
   }
   throw new Error(
     "No LLM configured — set OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY"
@@ -175,7 +182,7 @@ export class OpenRouterClient implements LlmClient {
   // https://openrouter.ai/models for the exact current slug if this 404s.
   constructor(
     private apiKey: string,
-    private model = process.env.OPENROUTER_MODEL || "anthropic/claude-haiku-4.5"
+    private model: string = process.env.OPENROUTER_MODEL?.trim() || "anthropic/claude-haiku-4.5"
   ) {}
 
   async generateJson(prompt: string): Promise<unknown> {
