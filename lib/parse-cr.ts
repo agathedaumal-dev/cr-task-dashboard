@@ -159,7 +159,7 @@ export function getConfiguredLlmClient(): LlmClient {
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
 
   if (openrouterKey) {
-    return new OpenRouterClient(openrouterKey, process.env.OPENROUTER_MODEL?.trim());
+    return new OpenRouterClient(openrouterKey);
   }
   if (anthropicKey) {
     return new AnthropicClient(anthropicKey);
@@ -176,37 +176,94 @@ export function getConfiguredLlmClient(): LlmClient {
 // OpenRouter (https://openrouter.ai) isn't tied to papernest's Google Workspace or
 // Anthropic's enterprise domain claim, so email/password signup with a work email
 // should work without hitting an org/SSO wall. OpenAI-compatible API.
+//
+// Runs a list of FREE models in order, falling through to the next one on rate
+// limits (429), "model not found" (404), or upstream server errors (5xx) — free
+// shared pools get congested, so at 1-10 CRs/day this keeps things working
+// without needing a paid key. Auth errors (401) are NOT retried across models
+// since they'd fail identically everywhere.
+const DEFAULT_FREE_MODELS = [
+  "google/gemma-4-31b-it:free",
+  "openai/gpt-oss-20b:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free",
+];
+
+const PER_MODEL_TIMEOUT_MS = 12_000;
+
+function resolveModelList(): string[] {
+  const fallbackList = process.env.OPENROUTER_MODEL_FALLBACKS?.trim();
+  if (fallbackList) {
+    return fallbackList.split(",").map((m) => m.trim()).filter(Boolean);
+  }
+  const single = process.env.OPENROUTER_MODEL?.trim();
+  if (single) {
+    return [single, ...DEFAULT_FREE_MODELS.filter((m) => m !== single)];
+  }
+  return DEFAULT_FREE_MODELS;
+}
+
 export class OpenRouterClient implements LlmClient {
-  // Model is overridable via OPENROUTER_MODEL so a wrong/deprecated guess here
-  // can be fixed with an env var change instead of a code deploy. Check
-  // https://openrouter.ai/models for the exact current slug if this 404s.
-  constructor(
-    private apiKey: string,
-    private model: string = process.env.OPENROUTER_MODEL?.trim() || "anthropic/claude-haiku-4.5"
-  ) {}
+  private models: string[];
+
+  constructor(private apiKey: string, models?: string[]) {
+    this.models = models ?? resolveModelList();
+  }
 
   async generateJson(prompt: string): Promise<unknown> {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!res.ok) {
-      throw new Error(`OpenRouter API error: ${res.status} ${await res.text()}`);
+    const errors: string[] = [];
+    for (const model of this.models) {
+      try {
+        return await this.callModel(model, prompt);
+      } catch (e) {
+        const msg = (e as Error).message;
+        errors.push(`${model}: ${msg}`);
+        const retryableOnNextModel = /\b(429|404|5\d\d)\b/.test(msg) || /rate.?limit|temporarily/i.test(msg);
+        if (!retryableOnNextModel) {
+          throw new Error(`OpenRouter request failed (not retrying further models): ${msg}`);
+        }
+        // else: fall through and try the next model in the list
+      }
     }
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const text = data.choices?.[0]?.message?.content ?? "{}";
-    // Some models route through OpenRouter without honoring response_format
-    // strictly and wrap JSON in prose or a markdown code fence — extract the
-    // first {...} block defensively, same as the Anthropic client above.
-    const match = text.match(/\{[\s\S]*\}/);
-    return JSON.parse(match ? match[0] : text);
+    throw new Error(
+      `All ${this.models.length} configured free model(s) failed:\n${errors.join("\n")}`
+    );
+  }
+
+  private async callModel(model: string, prompt: string): Promise<unknown> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT_MS);
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`OpenRouter API error: ${res.status} ${await res.text()}`);
+      }
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const text = data.choices?.[0]?.message?.content ?? "{}";
+      // Some models route through OpenRouter without honoring response_format
+      // strictly and wrap JSON in prose or a markdown code fence — extract the
+      // first {...} block defensively, same as the Anthropic client above.
+      const match = text.match(/\{[\s\S]*\}/);
+      return JSON.parse(match ? match[0] : text);
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        throw new Error(`timed out after ${PER_MODEL_TIMEOUT_MS}ms`);
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }
