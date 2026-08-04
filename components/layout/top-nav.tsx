@@ -56,6 +56,9 @@ export function TopNav() {
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
                   <ul className="grid gap-3 p-6 w-[420px] grid-cols-2">
+                    <ListItem href="/cr-ingestion" title="Add meeting notes">
+                      Paste a Granola CR to auto-create tasks.
+                    </ListItem>
                     <ListItem href="/my-todo" title="My To-Do">
                       Overdue, Today, This Week, Upcoming.
                     </ListItem>

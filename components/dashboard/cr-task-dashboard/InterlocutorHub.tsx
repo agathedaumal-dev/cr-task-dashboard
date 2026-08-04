@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AddInterlocutorForm } from "./AddInterlocutorForm";
 
 export interface InterlocutorData {
   id: string;
@@ -43,6 +44,7 @@ export function InterlocutorHub({
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside className="w-72 border-r border-slate-200 bg-white p-4">
+        <AddInterlocutorForm />
         <input
           type="text"
           placeholder="Search interlocutors…"
