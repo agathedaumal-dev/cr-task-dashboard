@@ -1,5 +1,5 @@
 {
-  "id": "29b75f74-4264-4bea-85b6-06aa95a19844",
+  "id": "197f1a48-ce0a-4219-83ad-1664a23e02c4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -431,6 +431,7 @@
       "values": [
         "my-todo",
         "i-owe-them",
+        "they-owe-me",
         "we-follow-together"
       ]
     }

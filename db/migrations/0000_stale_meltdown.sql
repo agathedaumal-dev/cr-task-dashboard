@@ -3,7 +3,7 @@ CREATE TYPE "public"."language" AS ENUM('en', 'fr', 'es');--> statement-breakpoi
 CREATE TYPE "public"."priority" AS ENUM('High', 'Medium', 'Low');--> statement-breakpoint
 CREATE TYPE "public"."product_id" AS ENUM('carbon-comp-fr', 'carbon-comp-sp', 'carbon-comp-it', 'mrh');--> statement-breakpoint
 CREATE TYPE "public"."status" AS ENUM('To Do', 'In Progress', 'Blocked', 'Done');--> statement-breakpoint
-CREATE TYPE "public"."task_type" AS ENUM('my-todo', 'i-owe-them', 'we-follow-together');--> statement-breakpoint
+CREATE TYPE "public"."task_type" AS ENUM('my-todo', 'i-owe-them', 'they-owe-me', 'we-follow-together');--> statement-breakpoint
 CREATE TABLE "interlocutors" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,

@@ -65,7 +65,16 @@ export async function saveParsedCr(input: SaveParsedCrInput) {
         productId: productId ?? "mrh",
         dueDate: candidate.dueDate ? new Date(candidate.dueDate) : null,
         priority: candidate.priority,
-        type: candidate.assigneeName === "Me" ? "my-todo" : "we-follow-together",
+        // 'Me' + tied to an interlocutor -> I owe them. 'Me' with no interlocutor
+        // context -> a plain personal task. Assigned to the interlocutor -> they owe me.
+        // 'we-follow-together' isn't auto-assigned; reclassify manually via PATCH
+        // /api/tasks/[id] if a task turns out to be a joint item.
+        type:
+          candidate.assigneeName === "Me"
+            ? matchedInterlocutor
+              ? "i-owe-them"
+              : "my-todo"
+            : "they-owe-me",
         crId: cr.id,
         crSourceTitle: title,
         crDate: new Date(meetingDate),

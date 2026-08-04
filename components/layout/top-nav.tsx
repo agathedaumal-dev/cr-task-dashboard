@@ -40,59 +40,7 @@ export function TopNav() {
           <NavigationMenu className="hidden md:flex">
             <NavigationMenuList className="gap-2">
               
-              <NavigationMenuItem>
-                <NavigationMenuTrigger 
-                  className="bg-secondary hover:bg-secondary/80 data-[state=open]:bg-secondary/80 cursor-default"
-                >
-                  <Typography
-                    as="span"
-                    variant="body"
-                    size="l"
-                    weight="medium"
-                    className="text-muted-foreground"
-                  >
-                    Tools & Apps
-                  </Typography>
-                </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid gap-3 p-6 w-[400px]">
-                    <ListItem href="/tools/analytics" title="Analytics">
-                      Business intelligence and reporting dashboards.
-                    </ListItem>
-                    <ListItem href="/tools/admin" title="Admin Panel">
-                      User management and system configuration.
-                    </ListItem>
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-
-              <NavigationMenuItem>
-                <NavigationMenuTrigger 
-                  className="bg-secondary hover:bg-secondary/80 data-[state=open]:bg-secondary/80 cursor-default"
-                >
-                  <Typography
-                    as="span"
-                    variant="body"
-                    size="l"
-                    weight="medium"
-                    className="text-muted-foreground"
-                  >
-                    Resources
-                  </Typography>
-                </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid gap-3 p-6 w-[400px]">
-                    <ListItem href="/docs/api" title="API Docs">
-                      Internal API endpoints and usage guides.
-                    </ListItem>
-                    <ListItem href="/docs/guides" title="Playbooks">
-                      Standard operating procedures (SOPs).
-                    </ListItem>
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-
-              <NavigationMenuItem>
+<NavigationMenuItem>
                 <NavigationMenuTrigger 
                   className="bg-secondary hover:bg-secondary/80 data-[state=open]:bg-secondary/80 cursor-default"
                 >

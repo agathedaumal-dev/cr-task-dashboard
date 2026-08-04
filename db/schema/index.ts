@@ -47,6 +47,7 @@ export const statusEnum = pgEnum("status", [
 export const taskTypeEnum = pgEnum("task_type", [
   "my-todo",
   "i-owe-them",
+  "they-owe-me",
   "we-follow-together",
 ]);
 

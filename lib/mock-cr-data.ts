@@ -30,9 +30,9 @@ export const MOCK_MY_TODO_TASKS: TaskCardData[] = [
 
 export const MOCK_FOLLOWUP_TASKS: FollowUpTask[] = [
   { id: "f1", interlocutorId: "julien", title: "Confirm impayés trend is stabilizing", type: "we-follow-together", dueDate: iso(7), status: "To Do", crSourceTitle: "Point hebdo MRH - Groupe Habitat", crDate: "2026-07-28" },
-  { id: "f2", interlocutorId: "fatima", title: "Relance clients en résiliation", type: "we-follow-together", dueDate: iso(3), status: "In Progress", crSourceTitle: "Point hebdo MRH - Groupe Habitat", crDate: "2026-07-28" },
-  { id: "f3", interlocutorId: "marta", title: "Validate new pitch before Aug 20 meeting", type: "we-follow-together", dueDate: iso(10), status: "To Do", crSourceTitle: "Seguimiento Carbon Comp España", crDate: "2026-07-29" },
-  { id: "f4", interlocutorId: "luca", title: "Report back from internal sales follow-up", type: "we-follow-together", dueDate: iso(5), status: "To Do", crSourceTitle: "Carbon Comp Italy sync", crDate: "2026-07-30" },
+  { id: "f2", interlocutorId: "fatima", title: "Relance clients en résiliation", type: "they-owe-me", dueDate: iso(3), status: "In Progress", crSourceTitle: "Point hebdo MRH - Groupe Habitat", crDate: "2026-07-28" },
+  { id: "f3", interlocutorId: "marta", title: "Validate new pitch before Aug 20 meeting", type: "they-owe-me", dueDate: iso(10), status: "To Do", crSourceTitle: "Seguimiento Carbon Comp España", crDate: "2026-07-29" },
+  { id: "f4", interlocutorId: "luca", title: "Report back from internal sales follow-up", type: "they-owe-me", dueDate: iso(5), status: "To Do", crSourceTitle: "Carbon Comp Italy sync", crDate: "2026-07-30" },
 ];
 
 export const MOCK_PRODUCT_TASKS: Record<string, { mine: ProductTask[]; theirs: ProductTask[] }> = {

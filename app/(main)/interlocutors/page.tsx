@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db } from "@/lib/db";
 import { interlocutors, tasks } from "@/db/schema";
 import { isNotNull } from "drizzle-orm";
@@ -17,12 +19,12 @@ export default async function InterlocutorsPage() {
 
     const taskRows = await db.select().from(tasks).where(isNotNull(tasks.interlocutorId));
     followUps = taskRows
-      .filter((t) => t.type === "i-owe-them" || t.type === "we-follow-together")
+      .filter((t) => t.type === "i-owe-them" || t.type === "they-owe-me" || t.type === "we-follow-together")
       .map((t) => ({
         id: t.id,
         interlocutorId: t.interlocutorId!,
         title: t.title,
-        type: t.type as "i-owe-them" | "we-follow-together",
+        type: t.type as "i-owe-them" | "they-owe-me" | "we-follow-together",
         dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
         status: t.status,
         crSourceTitle: t.crSourceTitle,
