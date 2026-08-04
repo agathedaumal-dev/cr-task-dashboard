@@ -170,7 +170,13 @@ export function getConfiguredLlmClient(): LlmClient {
 // Anthropic's enterprise domain claim, so email/password signup with a work email
 // should work without hitting an org/SSO wall. OpenAI-compatible API.
 export class OpenRouterClient implements LlmClient {
-  constructor(private apiKey: string, private model = "anthropic/claude-3.5-haiku") {}
+  // Model is overridable via OPENROUTER_MODEL so a wrong/deprecated guess here
+  // can be fixed with an env var change instead of a code deploy. Check
+  // https://openrouter.ai/models for the exact current slug if this 404s.
+  constructor(
+    private apiKey: string,
+    private model = process.env.OPENROUTER_MODEL || "anthropic/claude-haiku-4.5"
+  ) {}
 
   async generateJson(prompt: string): Promise<unknown> {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
