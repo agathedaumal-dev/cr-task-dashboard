@@ -1,0 +1,29 @@
+# infra_platform/platform.yaml — non-secret platform config for this app.
+# CI syncs it to platform-devops on every push to main (ai-innovation--sync-app-config).
+# All fields optional; omit any you don't want to change from the platform default.
+#
+# ⚠️  NO SECRETS HERE (this file is committed in plaintext). Use `./secret set KEY …`
+#     for API keys/tokens — see SECRETS.md. DB credentials are injected automatically.
+
+# visibility: "internal" (VPN only, default) or "public" (internet).
+visibility: internal
+
+# allowedCidrs: extra IP allowlist (comma-separated CIDRs). Empty = no extra restriction.
+# Both papernest VPNs are always allowed automatically (platform floor).
+allowedCidrs: ""
+
+# replicas: desired pod count (HPA may scale beyond this).
+replicas: 1
+
+# port: the port the container listens on. This template's Dockerfile serves on 3000.
+port: 3000
+
+# healthPath: path the readiness/liveness probes + ALB health check hit (must return 2xx/3xx).
+# Points at the unauthenticated /api/health route this template ships, so the pod goes Ready
+# and the URL is reachable even before Clerk env is configured (avoids DEVOPS-5495).
+healthPath: /api/health
+
+# resources: uncomment to override the platform defaults (req 0.25vCPU/256Mi, lim 0.5vCPU/512Mi).
+# resources:
+#   requests: { cpu: 250m, memory: 256Mi }
+#   limits:   { cpu: 500m, memory: 512Mi }

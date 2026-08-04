@@ -1,0 +1,236 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* 1. Preserved Fonts */
+  --font-sans: var(--font-avenir), var(--font-montserrat), ui-sans-serif,
+    system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  /* 2. Map Radius Tokens */
+  --radius: 0.5rem;
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* 3. Map Colors to CSS Variables */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-error: var(--error);
+  --color-error-foreground: var(--error-foreground);
+
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  :root {
+    /* --- Primitives (Hex Definitions) --- */
+    
+    /* Primary */
+    --primary-1: #F7F5FF;
+    --primary-2: #EEEEFF;
+    --primary-3: #DEDCFF;
+    --primary-4: #CDCBEF;
+    --primary-5: #9C97FF;
+    --primary-6: #7B75FF;
+    --primary-7: #5A52FF;
+    --primary-8: #4842CC;
+    --primary-9: #363199;
+    --primary-10: #1B194D;
+
+    /* Grey */
+    --grey-1: #FFFFFF;
+    --grey-2: #FCFCFD;
+    --grey-3: #F5F5F8;
+    --grey-4: #F0F1F4;
+    --grey-5: #ECEDF0;
+    --grey-6: #E2E4E9;
+    --grey-7: #D8DAE2;
+    --grey-8: #C5C8D4;
+    --grey-12: #63697F;
+    --grey-13: #4C5164;
+    --grey-14: #1D1F26;
+    --grey-15: #18191F;
+
+    /* Main Green (Papernest) */
+    --green-1: #F7FEFE;
+    --green-2: #E0F8F6;
+    --green-3: #C9F2EF;
+    --green-4: #9AE7E0;
+    --green-5: #6CDBD0;
+    --green-6: #3DD0C1;
+    --green-7: #0FC4B2;
+    --green-8: #0C9D8E;
+
+    /* Positive (Green) */
+    --positive-1: #F2FCF8;
+    --positive-2: #E1F4ED;
+    --positive-6: #4DB990;
+    --positive-7: #23A875;
+    --positive-8: #1C865E;
+
+    /* Warning (Orange) */
+    --warning-1: #FFF7F5;
+    --warning-2: #FFF3EE;
+    --warning-6: #FF9D75;
+    --warning-7: #FF8452;
+    --warning-8: #D36C42;
+
+    /* Negative (Red) */
+    --negative-1: #FFF5F5;
+    --negative-2: #FEEEEF;
+    --negative-6: #F5767C;
+    --negative-7: #F2545B;
+    --negative-8: #C64449;
+
+    /* --- Semantic Tokens Mapping --- */
+
+    /* Page Background -> background-page (grey-2) */
+    --background: var(--grey-2);
+    
+    /* Main Text -> font-color-primary (grey-14) */
+    --foreground: var(--grey-14);
+
+    /* Card/Popover -> background-primary (grey-1) */
+    --card: var(--grey-1);
+    --card-foreground: var(--grey-14);
+    --popover: var(--grey-1);
+    --popover-foreground: var(--grey-14);
+
+    /* Primary Action -> button-primary (primary-7) */
+    --primary: var(--primary-7);
+    --primary-foreground: var(--grey-1);
+
+    /* Secondary Action -> button-secondary (primary-7 @ 10%) */
+    /* Hex calculation: #5A52FF + 1A (10% alpha) */
+    --secondary: #5A52FF1A; 
+    --secondary-foreground: var(--primary-7);
+
+    /* Muted -> background-secondary (grey-3) */
+    --muted: var(--grey-3);
+    --muted-foreground: var(--grey-12);
+
+    /* Accent -> background-highlight-high (primary-2) */
+    --accent: var(--primary-2);
+    --accent-foreground: var(--primary-7);
+
+    /* Destructive -> button-primary-negative (negative-7) */
+    --destructive: var(--negative-7);
+    --destructive-foreground: var(--grey-1);
+
+    /* Semantic States (Success, Warning, Error, Info) */
+    
+    /* Success -> positive-7 */
+    --success: var(--positive-7);
+    --success-foreground: var(--grey-1);
+    --success-bg: var(--positive-2);
+    --success-border: var(--positive-7);
+
+    /* Warning -> warning-7 */
+    --warning: var(--warning-7);
+    --warning-foreground: var(--grey-1);
+    --warning-bg: var(--warning-2);
+    --warning-border: var(--warning-7);
+
+    /* Error -> negative-7 */
+    --error: var(--negative-7);
+    --error-foreground: var(--grey-1);
+    --error-bg: var(--negative-2);
+    --error-border: var(--negative-7);
+
+    /* Info -> primary-7 */
+    --info: var(--primary-7);
+    --info-foreground: var(--grey-1);
+    --info-bg: var(--primary-2);
+    --info-border: var(--primary-7);
+
+    /* Borders & Inputs -> border-primary (grey-7) */
+    --border: var(--grey-7);
+    --input: var(--grey-7);
+    --ring: var(--primary-7);
+
+    --radius: 0.5rem;
+  }
+
+  /* Note: Dark mode palette was not explicitly provided in the new JSON. 
+     Shadcn requires a .dark block for switching. 
+     You can map the 'grey' spectrum inversely here if needed later. */
+  .dark {
+    --background: var(--grey-14);
+    --foreground: var(--grey-1);
+    --card: var(--grey-15);
+    --card-foreground: var(--grey-1);
+    --popover: var(--grey-15);
+    --popover-foreground: var(--grey-1);
+    --primary: var(--primary-5); /* Lighter purple for dark mode */
+    --primary-foreground: var(--grey-14);
+    --secondary: var(--grey-13);
+    --secondary-foreground: var(--grey-1);
+    --muted: var(--grey-13);
+    --muted-foreground: var(--grey-8);
+    --accent: var(--grey-13);
+    --accent-foreground: var(--grey-1);
+    --destructive: var(--negative-6);
+    --destructive-foreground: var(--grey-1);
+    --border: var(--grey-13);
+    --input: var(--grey-13);
+    --ring: var(--primary-5);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+@layer utilities {
+  .btn-terciary {
+    background-color: var(--green-6) !important;
+    color: var(--grey-1) !important;
+  }
+
+  .btn-terciary:hover {
+    background-color: var(--green-7) !important;
+  }
+}

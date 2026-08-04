@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # 👇 ONLY pass public keys needed for the Next.js build process (client-side bundling)
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL}
+        NEXT_PUBLIC_CLERK_SIGN_IN_FORCE_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FORCE_REDIRECT_URL}
+        NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL}
+
+    container_name: ${APP_IDENTIFIER}
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+
+    # 👇 This injects ALL variables from .env into the running container
+    # This is where CLERK_SECRET_KEY, CLERK_JWT_KEY, etc. get passed securely at runtime.
+    env_file:
+      - .env
+
+    # Explicitly set production, though the Dockerfile usually handles this too.
+    environment:
+      - NODE_ENV=production
+      - APP_IDENTIFIER=${APP_IDENTIFIER}
+
+volumes:
+  postgres_data:

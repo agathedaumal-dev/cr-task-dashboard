@@ -1,0 +1,52 @@
+name: Update AI Rules
+
+on:
+  workflow_call:
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+env:
+  AI_RULES_REPO: git@github.com:papernest/ba-papervibes-ai-rules.git
+
+jobs:
+  update-ai-rules:
+    name: Pull Latest AI Rules & Open PR
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Pull latest papervibes-ai-rules subtree
+        run: |
+          git subtree pull \
+            --prefix=.papervibes/ai-rules \
+            "$AI_RULES_REPO" \
+            main \
+            --squash \
+            -m "chore: update papervibes-ai-rules to latest"
+        continue-on-error: true  # Already up to date is not a failure
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/update-ai-rules
+          title: "chore: update papervibes-ai-rules to latest"
+          body: |
+            Automated weekly update of `.papervibes/ai-rules/` from the platform team.
+
+            Please review and merge to keep your AI rules fresh.
+            The freshness CI check will fail if this is not merged within 30 days.
+          commit-message: "chore: update papervibes-ai-rules to latest"
+          labels: "ai-rules,automated"
+          delete-branch: true

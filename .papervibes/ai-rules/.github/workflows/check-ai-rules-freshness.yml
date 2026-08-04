@@ -1,0 +1,27 @@
+name: Check AI Rules Freshness
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check-freshness:
+    name: Check AI Rules Max Age
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check papervibes-ai-rules max age
+        run: |
+          LAST_UPDATE=$(git log --format="%ct" -- .papervibes/ai-rules/ | head -1)
+          MAX_AGE_SECONDS=$((30 * 86400))
+          AGE=$(( $(date +%s) - LAST_UPDATE ))
+          if [ "$AGE" -gt "$MAX_AGE_SECONDS" ]; then
+            echo "❌ papervibes-ai-rules not updated in over 30 days. Please merge the latest PR."
+            exit 1
+          fi
+          echo "✅ Fresh ($(($AGE / 86400)) days ago)"

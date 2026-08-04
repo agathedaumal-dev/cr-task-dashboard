@@ -1,0 +1,33 @@
+---
+name: design-system
+description: Typography and class usage rules for the design system
+---
+
+# Design System Rules
+
+## Typography usage
+- Always use the `Typography` component from `components/ui/typography.tsx` for headings, subtitles, body, and captions.
+- Use the `as` prop to choose semantic tags (e.g., `h1`, `h2`, `p`, `span`) while keeping the correct typography styles.
+- Avoid ad-hoc text size/weight classes on new UI unless explicitly required for a one-off.
+
+## Standard mappings
+- Main page header: `Typography` with `variant="title"` `size="l"` `weight="book"` and `as="h1"`.
+- Section header: `Typography` with `variant="title"` `size="m"` `weight="book"` and `as="h2"`.
+- Subsection header: `Typography` with `variant="title"` `size="s"` `weight="book"` and `as="h3"`.
+- Subtitle: `Typography` with `variant="subtitle"` `size="m"` `weight="medium"` and `as="p"`.
+- Body text: `Typography` with `variant="body"` and size/weight based on context.
+- Caption: `Typography` with `variant="caption"` `size="s"` `weight="book"` and `as="span"`.
+
+## If `Typography` cannot be used
+Use these class combinations exactly:
+- Title L: `text-[28px] leading-[40px] font-normal`
+- Title M: `text-[22px] leading-[32px] font-normal`
+- Title S: `text-[18px] leading-[24px] font-normal`
+- Subtitle: `text-[16px] leading-[24px] font-medium`
+- Body L heavy: `text-[16px] leading-[24px] font-black`
+- Body L medium: `text-[16px] leading-[24px] font-medium`
+- Body M heavy: `text-[14px] leading-[20px] font-black`
+- Body M medium: `text-[14px] leading-[20px] font-medium`
+- Body S heavy: `text-[12px] leading-[16px] font-black`
+- Body S medium: `text-[12px] leading-[16px] font-medium`
+- Caption: `text-[12px] leading-[16px] font-normal`

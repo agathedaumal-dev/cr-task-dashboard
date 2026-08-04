@@ -1,0 +1,52 @@
+---
+name: organization
+description: About Project Architecture & Organization Rules
+---
+
+# Papernest Next.js Project Rules
+
+## Tech Stack
+- **Framework**: Next.js (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS, Shadcn/UI
+- **Auth**: Clerk
+- **Validation**: Zod
+- **State/Fetching**: Server Components (primary), SWR/React Query (client backup)
+
+## 1. Project Structure & Organization
+
+### Directory Rules
+- **`app/`**: Contains **ONLY** routing logic (`page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`).
+  - *Rule*: **NEVER** create UI components inside `app/` directories.
+  - *Default Path*: Assume new pages go into `app/(main)/` unless specified as authentication pages.
+- **`app/actions/`**: Contains all Server Actions.
+  - *Naming*: `[domain]-actions.ts` (e.g., `ticket-actions.ts`).
+- **`app/api/`**: Route Handlers **ONLY** for:
+  - Webhooks (e.g., Clerk, Stripe).
+  - External-facing public APIs.
+  - Scenarios requiring raw HTTP method handling.
+- **`components/`**:
+  - `ui/`: Primitive components (buttons, inputs, cards) - mostly Shadcn/UI.
+  - `features/`: Domain-specific business components (e.g., `TicketList`, `UserDetails`).
+  - `layout/`: Structural components (e.g., `Sidebar`, `TopNav`).
+- **`lib/`**: Utility functions, database clients, and env validation.
+- **`hooks/`**: Custom React hooks.
+- **`public/`**: Static assets. Images must be referenced via the Next.js `<Image />` component.
+- **`proxy.ts`**: Root-level request interception. **DO NOT** use or create `middleware.ts`.
+
+## 2. Coding Standards
+
+### Components
+- **Syntax**: Always use `export function ComponentName() {}`.
+  - *Restriction*: Do not use arrow functions for top-level components.
+  - *Restriction*: Do not use `default export`; always use named exports.
+- **Props**: Use TypeScript interfaces: `interface ComponentProps { ... }`.
+- **Logic**: Colocate complex logic into custom hooks inside `hooks/`.
+
+### Server Actions
+- **Usage**: All data mutations must be Server Actions, not API routes.
+- **Validation**: Strict input validation using `zod` for every action.
+- **Error Handling**: Always wrap in `try/catch`.
+- **Return Type**: Return a standardized object:
+  ```typescript
+  { success: boolean, message: string, data?: T }

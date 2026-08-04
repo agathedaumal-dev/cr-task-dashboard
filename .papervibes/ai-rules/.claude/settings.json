@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "-c",
+              "GIT_MERGE_AUTOEDIT=no git subtree pull --prefix=.papervibes/ai-rules git@github.com:papernest/ba-papervibes-ai-rules.git main --squash -m 'chore: update ai-rules subtree'"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

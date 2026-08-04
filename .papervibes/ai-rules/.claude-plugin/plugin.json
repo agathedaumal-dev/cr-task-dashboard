@@ -1,0 +1,8 @@
+{
+  "name": "papervibes-ai-rules",
+  "version": "1.0.0",
+  "description": "Platform AI rules and skills for Papervibes apps — maintained by the platform team.",
+  "publisher": "papernest",
+  "homepage": "https://github.com/papernest/papervibes-ai-rules",
+  "skills_dir": "skills"
+}

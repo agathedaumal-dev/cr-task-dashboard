@@ -1,0 +1,136 @@
+description: Architecture and rules for implementing Role-Based Access Control (RBAC) in Next.js
+globs: **/*.ts, **/*.tsx
+---
+# 🔐 Role-Based Access Control (RBAC) Architecture
+
+This project uses a robust, type-safe, and centralized Role-Based Access Control (RBAC) system. It relies on Clerk for authentication and custom metadata for authorization. 
+
+Always follow these strict patterns when implementing or enforcing permissions.
+
+## 1. Single Source of Truth (`lib/rbac.ts`)
+All permission definitions are strictly centralized in `lib/rbac.ts`. 
+Do NOT hardcode permission strings anywhere else in the application.
+
+To add a new permission:
+1. Define the string in the `PERMISSIONS` object using the `domain:resource:action` convention.
+2. Assign the permission to specific roles in the `ROLE_PERMISSIONS` array.
+
+## 2. Enforcement Layers
+
+### A. The Edge (Middleware / `proxy.ts`)
+For broad, route-level security, enforce permissions before the request hits the Next.js runtime. 
+- **Rule:** Use `createRouteMatcher` and check permissions inside `clerkMiddleware`.
+- **Behavior:** Redirect unauthorized users to `/forbidden`.
+
+```typescript
+// Example in proxy.ts
+import { PERMISSIONS, hasPermission, extractRoleFromMetadata } from "@/lib/rbac";
+const isNewFeatureRoute = createRouteMatcher(["/new-feature(.*)"]);
+
+// Inside clerkMiddleware:
+if (isNewFeatureRoute(request)) {
+  if (!role || !hasPermission(role, PERMISSIONS.FEATURE_A.READ)) {
+    return NextResponse.redirect(new URL("/forbidden", request.url));
+  }
+}
+
+```
+
+### B. UI Conditional Rendering (Client & Server Components)
+
+Wrap protected UI elements (like buttons, links, or sensitive data tables) to prevent unauthorized users from seeing them.
+
+* **Rule:** Use the `<PermissionGuard />` component from `lib/authz-check.server.tsx`.
+
+```tsx
+import { PermissionGuard } from "@/lib/authz-check.server";
+import { PERMISSIONS } from "@/lib/rbac";
+
+export default function Dashboard() {
+  return (
+    <PermissionGuard permission={PERMISSIONS.FEATURE_A.WRITE}>
+      <button>Edit Data</button>
+    </PermissionGuard>
+  );
+}
+
+```
+
+### C. Server Actions (Mutations)
+
+**CRITICAL RULE:** Do NOT use hard redirects (`requirePermission`) inside Server Actions. It creates a terrible UX and interrupts user flow.
+
+* **Rule:** Use `checkPermission()` to validate access. If unauthorized, return an error object.
+* **Behavior:** The client component invoking the action MUST catch this error and display a toast notification using `sonner`.
+
+**Server Action (`actions.ts`):**
+
+```typescript
+"use server"
+import { checkPermission } from "@/lib/authz-check.server";
+import { PERMISSIONS } from "@/lib/rbac";
+
+export async function mySecureServerAction() {
+  const isAuthorized = await checkPermission(PERMISSIONS.FEATURE_A.WRITE);
+  
+  if (!isAuthorized) {
+    return { error: "You do not have permission to perform this action." };
+  }
+  
+  // Proceed with secure mutation...
+  return { success: "Data updated successfully!" };
+}
+
+```
+
+**Client Component:**
+
+```tsx
+"use client"
+import { toast } from "sonner";
+import { mySecureServerAction } from "./actions";
+
+// Inside event handler:
+const result = await mySecureServerAction();
+if (result?.error) {
+  toast.error(result.error);
+  return;
+}
+toast.success(result.success);
+
+```
+
+### D. Server Pages (Full Page Load)
+
+If a user tries to access a specific Server Component directly (and it wasn't caught by the Edge proxy), use hard enforcement.
+
+* **Rule:** Use `requirePermission()` from `lib/authz-check.server.tsx`.
+* **Behavior:** Throws a redirect to `/forbidden`.
+
+```tsx
+import { requirePermission } from "@/lib/authz-check.server";
+import { PERMISSIONS } from "@/lib/rbac";
+
+export default async function RestrictedPage() {
+  await requirePermission(PERMISSIONS.FEATURE_A.READ);
+  return <div>Protected Content</div>;
+}
+
+```
+
+### E. API Route Handlers
+
+Wrap Next.js API route handlers to ensure the caller has the correct role.
+
+* **Rule:** Use the `withPermission` higher-order function.
+
+```tsx
+import { withPermission } from "@/lib/authz-check.server";
+import { PERMISSIONS } from "@/lib/rbac";
+
+export const POST = withPermission(
+  PERMISSIONS.FEATURE_A.WRITE, 
+  async (req) => {
+    // API Logic...
+  }
+);
