@@ -1,15 +1,12 @@
-import { auth } from "@clerk/nextjs/server"
 import { TopNav } from "@/components/layout/top-nav"
 import { Toaster } from "@/components/ui/sonner"
 import { appConfig } from "@/lib/app-config";
 
-export default async function MainLayout({
+export default function MainLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  await auth.protect()
-
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <TopNav />
@@ -19,19 +16,17 @@ export default async function MainLayout({
       </main>
 
       <footer className="py-6 text-center text-xs text-muted-foreground border-t bg-card">
-        <p>© {appConfig.appName} - powered by papervibes.<a href="#" className="underline hover:text-primary"></a></p>
+        <p>© {appConfig.appName} - personal deployment.</p>
       </footer>
 
-      {/* Customized Sonner: Opaque & Colored */}
-      <Toaster 
+      <Toaster
         position="bottom-right"
         toastOptions={{
-          //className: "!bg-card text-foreground border-border shadow-lg",
           classNames: {
             toast: "!bg-card text-foreground border-border shadow-lg",
           },
         }}
-      /> 
+      />
     </div>
   )
 }

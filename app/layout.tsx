@@ -1,5 +1,3 @@
-import { ClerkProvider } from "@clerk/nextjs";
-import type { Appearance } from "@clerk/types";
 import "./globals.css";
 import Script from "next/script";
 import localFont from "next/font/local";
@@ -46,27 +44,7 @@ const montserrat = Montserrat({
   display: "swap",
 });
 
-/**
- * This object can be customized to change Clerk's built-in appearance. To learn more: https://clerk.com/docs/customization/overview
- */
-const clerkAppearanceObject = {
-  cssLayerName: "clerk",
-  variables: {
-    colorPrimary: "var(--primary)",
-    colorBackground: "var(--background)",
-    colorText: "var(--foreground)",
-  },
-  elements: {
-    socialButtonsBlockButton:
-      "bg-card border-border hover:bg-muted hover:border-border text-muted-foreground hover:text-foreground",
-    socialButtonsBlockButtonText: "font-semibold",
-    formButtonReset:
-      "bg-card border border-solid border-border hover:bg-muted hover:border-border text-muted-foreground hover:text-foreground",
-    membersPageInviteButton:
-      "bg-primary text-primary-foreground border border-primary hover:bg-primary/90 hover:text-primary-foreground",
-    card: "bg-card",
-  },
-} satisfies Appearance;
+
 
 export default async function RootLayout({
   children,
@@ -77,12 +55,10 @@ export default async function RootLayout({
   const nonce = headerList.get("x-nonce") ?? undefined;
 
   return (
-    <ClerkProvider appearance={clerkAppearanceObject} dynamic>
-        <html lang="en" className={`${avenir.variable} ${montserrat.variable}`}>
-
-        <body className={`min-h-screen flex flex-col antialiased`} suppressHydrationWarning>
-          {children}
-        </body>
+    <html lang="en" className={`${avenir.variable} ${montserrat.variable}`}>
+      <body className={`min-h-screen flex flex-col antialiased`} suppressHydrationWarning>
+        {children}
+      </body>
 
       <Script
         src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-core.min.js"
@@ -93,6 +69,5 @@ export default async function RootLayout({
         nonce={nonce}
       />
     </html>
-    </ClerkProvider>
   );
 }

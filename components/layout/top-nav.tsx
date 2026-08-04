@@ -14,7 +14,6 @@ import {
 } from "@/components/layout/navigation-menu"
 import { Button } from "@/components/ui/button"
 import { Typography } from "@/components/ui/typography"
-import { UserButton, ClerkLoading, ClerkLoaded } from "@clerk/nextjs"
 import { ChevronDown } from "lucide-react"
 import { appConfig } from "@/lib/app-config";
 
@@ -169,23 +168,6 @@ export function TopNav() {
           </Button>
 
           <div className="h-8 w-px bg-border mx-1 hidden sm:block" />
-
-          {/* User Profile */}
-          <div className="flex items-center justify-center h-11 w-11">
-            <ClerkLoading>
-              <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
-            </ClerkLoading>
-
-            <ClerkLoaded>
-              <UserButton 
-                appearance={{
-                  elements: {
-                    userButtonAvatarBox: "h-10 w-10"
-                  }
-                }}
-              />
-            </ClerkLoaded>
-          </div>
 
           {/* Language Selector (Hidden for now) */}
           <div className="hidden items-center gap-1 cursor-pointer hover:text-primary transition-colors">
