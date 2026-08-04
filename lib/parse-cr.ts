@@ -190,6 +190,10 @@ export class OpenRouterClient implements LlmClient {
     }
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const text = data.choices?.[0]?.message?.content ?? "{}";
-    return JSON.parse(text);
+    // Some models route through OpenRouter without honoring response_format
+    // strictly and wrap JSON in prose or a markdown code fence — extract the
+    // first {...} block defensively, same as the Anthropic client above.
+    const match = text.match(/\{[\s\S]*\}/);
+    return JSON.parse(match ? match[0] : text);
   }
 }

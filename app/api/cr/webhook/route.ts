@@ -9,13 +9,13 @@
 // Security TODO before going live: verify a shared-secret header on incoming
 // requests via GRANOLA_WEBHOOK_SECRET — this endpoint is otherwise public.
 
+export const maxDuration = 60;
+
 import { NextResponse } from "next/server";
 import { parseCr, getConfiguredLlmClient, type Language } from "@/lib/parse-cr";
 import { saveParsedCr } from "@/lib/save-parsed-cr";
 
 function detectLanguage(text: string): Language {
-  // Placeholder heuristic — replace with a real detector once real Granola
-  // payloads are in hand (or have Gemini report the detected language back).
   const lower = text.toLowerCase();
   if (/[áéíóúñ¿¡]/.test(lower) || / el | la | de la /.test(lower)) return "es";
   if (/[àâçéèêëîïôùûü]/.test(lower) || / le | la | des /.test(lower)) return "fr";
@@ -28,14 +28,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const payload = await req.json();
+  let payload: Record<string, unknown>;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Request body is not valid JSON" }, { status: 400 });
+  }
 
-  const title: string = payload.meeting_title ?? payload.title ?? "Untitled meeting";
-  const meetingDate: string = payload.event_start ?? payload.created_at ?? new Date().toISOString();
-  const attendees: string[] = (payload.attendees ?? []).map(
-    (a: { name?: string; email?: string }) => a.name ?? a.email ?? "Unknown"
+  const title = (payload.meeting_title as string) ?? (payload.title as string) ?? "Untitled meeting";
+  const meetingDate =
+    (payload.event_start as string) ?? (payload.created_at as string) ?? new Date().toISOString();
+  const attendees = ((payload.attendees as { name?: string; email?: string }[]) ?? []).map(
+    (a) => a.name ?? a.email ?? "Unknown"
   );
-  const rawText: string = payload.notes ?? payload.transcript ?? "";
+  const rawText = (payload.notes as string) ?? (payload.transcript as string) ?? "";
 
   if (!rawText) {
     return NextResponse.json({ error: "no notes/transcript in payload" }, { status: 400 });
@@ -48,17 +54,29 @@ export async function POST(req: Request) {
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
-  const { tasks: candidates } = await parseCr({ rawText, title, meetingDate, attendees, language }, llm);
 
-  const result = await saveParsedCr({
-    title,
-    meetingDate,
-    attendees,
-    language,
-    rawText,
-    candidates,
-    source: "granola-webhook",
-  });
+  let candidates;
+  try {
+    const parsed = await parseCr({ rawText, title, meetingDate, attendees, language }, llm);
+    candidates = parsed.tasks;
+  } catch (e) {
+    console.error("CR parsing failed:", e);
+    return NextResponse.json({ error: `LLM parsing failed: ${(e as Error).message}` }, { status: 502 });
+  }
 
-  return NextResponse.json({ received: true, ...result });
+  try {
+    const result = await saveParsedCr({
+      title,
+      meetingDate,
+      attendees,
+      language,
+      rawText,
+      candidates,
+      source: "granola-webhook",
+    });
+    return NextResponse.json({ received: true, ...result });
+  } catch (e) {
+    console.error("Saving parsed CR failed:", e);
+    return NextResponse.json({ error: `Saving to database failed: ${(e as Error).message}` }, { status: 500 });
+  }
 }

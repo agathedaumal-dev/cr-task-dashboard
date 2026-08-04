@@ -3,12 +3,20 @@
 //
 // Body: { title, meetingDate, attendees, language, rawText }
 
+export const maxDuration = 60; // LLM parsing of a long CR can take a while; default (10s) was too short.
+
 import { NextResponse } from "next/server";
 import { parseCr, getConfiguredLlmClient, type Language } from "@/lib/parse-cr";
 import { saveParsedCr } from "@/lib/save-parsed-cr";
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Request body is not valid JSON" }, { status: 400 });
+  }
+
   const { title, meetingDate, attendees, language, rawText } = body as {
     title: string;
     meetingDate: string;
@@ -27,17 +35,35 @@ export async function POST(req: Request) {
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
-  const { tasks: candidates } = await parseCr({ rawText, title, meetingDate, attendees, language }, llm);
 
-  const result = await saveParsedCr({
-    title,
-    meetingDate,
-    attendees,
-    language,
-    rawText,
-    candidates,
-    source: "manual-paste",
-  });
+  let candidates;
+  try {
+    const parsed = await parseCr({ rawText, title, meetingDate, attendees, language }, llm);
+    candidates = parsed.tasks;
+  } catch (e) {
+    console.error("CR parsing failed:", e);
+    return NextResponse.json(
+      { error: `LLM parsing failed: ${(e as Error).message}` },
+      { status: 502 }
+    );
+  }
 
-  return NextResponse.json(result);
+  try {
+    const result = await saveParsedCr({
+      title,
+      meetingDate,
+      attendees,
+      language,
+      rawText,
+      candidates,
+      source: "manual-paste",
+    });
+    return NextResponse.json(result);
+  } catch (e) {
+    console.error("Saving parsed CR failed:", e);
+    return NextResponse.json(
+      { error: `Saving to database failed: ${(e as Error).message}` },
+      { status: 500 }
+    );
+  }
 }

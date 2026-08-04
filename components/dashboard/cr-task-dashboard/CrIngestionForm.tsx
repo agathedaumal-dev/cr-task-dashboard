@@ -47,11 +47,21 @@ export function CrIngestionForm() {
           rawText,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "Failed to parse CR");
+      const rawBody = await res.text();
+      let data: { saved?: boolean; tasks?: ParsedTaskResult[]; error?: string };
+      try {
+        data = rawBody ? JSON.parse(rawBody) : {};
+      } catch {
+        throw new Error(
+          `Server returned a non-JSON response (HTTP ${res.status}). This usually means the ` +
+            `request timed out (long CRs can take a while to parse) or the function crashed. Try again, ` +
+            `or try a shorter excerpt first.`
+        );
       }
-      setResult(data);
+      if (!res.ok) {
+        throw new Error(data.error ?? `Failed to parse CR (HTTP ${res.status})`);
+      }
+      setResult({ saved: !!data.saved, tasks: data.tasks });
       if (data.saved) {
         setTitle("");
         setAttendees("");
