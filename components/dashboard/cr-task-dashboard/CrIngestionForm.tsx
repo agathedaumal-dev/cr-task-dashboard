@@ -22,7 +22,12 @@ export function CrIngestionForm() {
   const [rawText, setRawText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ saved: boolean; tasks?: ParsedTaskResult[] } | null>(null);
+  const [result, setResult] = useState<{
+    saved: boolean;
+    tasks?: ParsedTaskResult[];
+    completedTaskIds?: string[];
+    delegatedToCalindeTaskIds?: string[];
+  } | null>(null);
 
   const submit = async () => {
     if (!title.trim() || !rawText.trim()) {
@@ -48,7 +53,13 @@ export function CrIngestionForm() {
         }),
       });
       const rawBody = await res.text();
-      let data: { saved?: boolean; tasks?: ParsedTaskResult[]; error?: string };
+      let data: {
+        saved?: boolean;
+        tasks?: ParsedTaskResult[];
+        completedTaskIds?: string[];
+        delegatedToCalindeTaskIds?: string[];
+        error?: string;
+      };
       try {
         data = rawBody ? JSON.parse(rawBody) : {};
       } catch {
@@ -61,7 +72,12 @@ export function CrIngestionForm() {
       if (!res.ok) {
         throw new Error(data.error ?? `Failed to parse CR (HTTP ${res.status})`);
       }
-      setResult({ saved: !!data.saved, tasks: data.tasks });
+      setResult({
+        saved: !!data.saved,
+        tasks: data.tasks,
+        completedTaskIds: data.completedTaskIds,
+        delegatedToCalindeTaskIds: data.delegatedToCalindeTaskIds,
+      });
       if (data.saved) {
         setTitle("");
         setAttendees("");
@@ -138,7 +154,11 @@ export function CrIngestionForm() {
 
       {result?.saved && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          Created {result.tasks?.length ?? 0} task(s). Check{" "}
+          Created {result.tasks?.length ?? 0} task(s)
+          {(result.completedTaskIds?.length ?? 0) > 0 && `, marked ${result.completedTaskIds!.length} existing task(s) as Done`}
+          {(result.delegatedToCalindeTaskIds?.length ?? 0) > 0 &&
+            `, delegated ${result.delegatedToCalindeTaskIds!.length} existing task(s) to Calindé`}
+          . Check{" "}
           <a href="/my-todo" className="underline">
             My To-Do
           </a>{" "}

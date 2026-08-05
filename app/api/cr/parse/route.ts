@@ -6,8 +6,20 @@
 export const maxDuration = 60; // LLM parsing of a long CR can take a while; default (10s) was too short.
 
 import { NextResponse } from "next/server";
-import { parseCr, getConfiguredLlmClient, type Language } from "@/lib/parse-cr";
+import { parseCr, getConfiguredLlmClient, type Language, type OpenTaskRef } from "@/lib/parse-cr";
 import { saveParsedCr } from "@/lib/save-parsed-cr";
+import { db } from "@/lib/db";
+import { tasks } from "@/db/schema";
+import { ne } from "drizzle-orm";
+
+// Fed to the LLM so it can recognize "that's done" / "delegate that to
+// Calindé" lines referring to work raised in a prior meeting, not just
+// extract brand-new action items from this one.
+async function loadOpenTasks(): Promise<OpenTaskRef[]> {
+  if (!db) return [];
+  const rows = await db.select({ id: tasks.id, title: tasks.title }).from(tasks).where(ne(tasks.status, "Done"));
+  return rows;
+}
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -36,10 +48,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 
-  let candidates;
+  const openTasks = await loadOpenTasks();
+
+  let parsed;
   try {
-    const parsed = await parseCr({ rawText, title, meetingDate, attendees, language }, llm);
-    candidates = parsed.tasks;
+    parsed = await parseCr({ rawText, title, meetingDate, attendees, language, openTasks }, llm);
   } catch (e) {
     console.error("CR parsing failed:", e);
     return NextResponse.json(
@@ -55,7 +68,9 @@ export async function POST(req: Request) {
       attendees,
       language,
       rawText,
-      candidates,
+      candidates: parsed.tasks,
+      completedTaskIds: parsed.completedTaskIds,
+      delegatedToCalindeTaskIds: parsed.delegatedToCalindeTaskIds,
       source: "manual-paste",
     });
     return NextResponse.json(result);

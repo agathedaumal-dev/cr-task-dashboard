@@ -4,6 +4,7 @@
 // writes everything to the DB. Falls back to returning unsaved candidates
 // when DATABASE_URL isn't configured yet (db-optional, per template convention).
 
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { meetingCrs, tasks, interlocutors } from "@/db/schema";
 import { tagProduct } from "@/lib/product-tagging";
@@ -17,10 +18,24 @@ export interface SaveParsedCrInput {
   rawText: string;
   candidates: ParsedTaskCandidate[];
   source: "manual-paste" | "granola-webhook";
+  // ids of already-tracked open tasks the CR says are now done / now
+  // delegated to Calindé — see lib/parse-cr.ts's OPEN TASKS prompt section.
+  completedTaskIds?: string[];
+  delegatedToCalindeTaskIds?: string[];
 }
 
 export async function saveParsedCr(input: SaveParsedCrInput) {
-  const { title, meetingDate, attendees, language, rawText, candidates, source } = input;
+  const {
+    title,
+    meetingDate,
+    attendees,
+    language,
+    rawText,
+    candidates,
+    source,
+    completedTaskIds = [],
+    delegatedToCalindeTaskIds = [],
+  } = input;
 
   if (!db) {
     const tagged = candidates.map((c) => ({ ...c, product: tagProduct({ crText: rawText }) }));
@@ -28,6 +43,9 @@ export async function saveParsedCr(input: SaveParsedCrInput) {
   }
 
   const knownInterlocutors = await db.select().from(interlocutors);
+  // Delegation only ever goes to Calindé (same rule as the UI's one-click
+  // delegate button) — resolve her id once, reused below.
+  const calinde = knownInterlocutors.find((i) => i.name.toLowerCase().startsWith("calind"));
 
   const [cr] = await db
     .insert(meetingCrs)
@@ -75,6 +93,7 @@ export async function saveParsedCr(input: SaveParsedCrInput) {
               ? "i-owe-them"
               : "my-todo"
             : "they-owe-me",
+        delegatedTo: candidate.delegateToCalinde ? calinde?.id : undefined,
         crId: cr.id,
         crSourceTitle: title,
         crDate: new Date(meetingDate),
@@ -83,5 +102,32 @@ export async function saveParsedCr(input: SaveParsedCrInput) {
     inserted.push(row);
   }
 
-  return { saved: true as const, cr, tasks: inserted };
+  // Apply the CR's mentions of prior work being finished/delegated. Each is
+  // its own small update — a CR marking 3 old tasks done shouldn't fail the
+  // whole save if one of the ids turns out to be stale.
+  const completedUpdated: string[] = [];
+  for (const id of completedTaskIds) {
+    const [row] = await db.update(tasks).set({ status: "Done", updatedAt: new Date() }).where(eq(tasks.id, id)).returning();
+    if (row) completedUpdated.push(row.id);
+  }
+
+  const delegatedUpdated: string[] = [];
+  if (calinde) {
+    for (const id of delegatedToCalindeTaskIds) {
+      const [row] = await db
+        .update(tasks)
+        .set({ delegatedTo: calinde.id, updatedAt: new Date() })
+        .where(eq(tasks.id, id))
+        .returning();
+      if (row) delegatedUpdated.push(row.id);
+    }
+  }
+
+  return {
+    saved: true as const,
+    cr,
+    tasks: inserted,
+    completedTaskIds: completedUpdated,
+    delegatedToCalindeTaskIds: delegatedUpdated,
+  };
 }

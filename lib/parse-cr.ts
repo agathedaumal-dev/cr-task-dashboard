@@ -12,6 +12,18 @@ export interface ParsedTaskCandidate {
   dueDate: string | null; // ISO date, or null if not stated (renders as "TBD")
   priority: Priority; // defaults to "Medium" if not inferable
   rationale: string; // short note on why this was extracted, for the review step
+  // True when the CR states this brand-new action item is itself being
+  // delegated to Calindé as it's raised (rare, but the same signal as
+  // delegatedTaskIds below — just for an item that didn't exist yet).
+  delegateToCalinde: boolean;
+}
+
+// A currently open (non-Done) task already in the dashboard, given to the LLM
+// so it can recognize "that's done" / "I'm delegating that to Calindé" lines
+// that refer to prior work rather than only extracting brand-new action items.
+export interface OpenTaskRef {
+  id: string;
+  title: string;
 }
 
 export interface ParseCrInput {
@@ -20,10 +32,17 @@ export interface ParseCrInput {
   meetingDate: string; // ISO date
   attendees: string[];
   language: Language;
+  openTasks?: OpenTaskRef[];
 }
 
 export interface ParseCrOutput {
   tasks: ParsedTaskCandidate[];
+  // ids from the provided openTasks list that the CR states are now complete.
+  completedTaskIds: string[];
+  // ids from the provided openTasks list that the CR states are now delegated
+  // to Calindé (task stays owned/followed by whoever it already was, just
+  // also shows up on Calindé's page — same semantics as the UI's delegate button).
+  delegatedToCalindeTaskIds: string[];
 }
 
 // --- LLM call abstraction -----------------------------------------------
@@ -33,7 +52,7 @@ export interface LlmClient {
 }
 
 const SYSTEM_PROMPT = `You are extracting action items from a meeting note (Compte Rendu / CR).
-The note may be in English, French, or Spanish. Extract every concrete action item.
+The note may be in English, French, or Spanish. Extract every concrete NEW action item.
 For each one, determine:
 - title: a short, clear description of the action (translate to English for consistency)
 - assigneeName: "Me" if the note's author/user owns the action, otherwise the exact
@@ -42,11 +61,29 @@ For each one, determine:
   (e.g. "by Friday", "next week" -> resolve relative to the meeting date), otherwise null
 - priority: "High", "Medium", or "Low" — infer from urgency language, default "Medium"
 - rationale: one short sentence quoting or paraphrasing the source line
+- delegateToCalinde: true only if the note explicitly says this brand-new item is being
+  handed to/delegated to Calindé as it's raised, otherwise false
+
+You are ALSO given a list of OPEN TASKS already tracked in the dashboard (id + title).
+Separately from the new action items above, scan the CR for two kinds of signal about
+those existing tasks:
+1. The note states one is now done/completed/finished/sent/resolved (e.g. "c'est fait",
+   "ya lo envié", "done", "sorted") -> put its exact id in completedTaskIds.
+2. The note states one is now delegated/handed off/given to Calindé specifically (e.g.
+   "je délègue à Calindé", "Calindé va s'en occuper", "delegate that to Calindé") -> put
+   its exact id in delegatedToCalindeTaskIds.
+Only use ids that appear in the OPEN TASKS list — never invent one. If nothing matches,
+return empty arrays. A task can appear in at most one of the two lists.
 
 Return ONLY valid JSON matching: { "tasks": [ { "title": string, "assigneeName": string,
-"dueDate": string | null, "priority": "High"|"Medium"|"Low", "rationale": string } ] }`;
+"dueDate": string | null, "priority": "High"|"Medium"|"Low", "rationale": string,
+"delegateToCalinde": boolean } ], "completedTaskIds": string[], "delegatedToCalindeTaskIds": string[] }`;
 
 export function buildPrompt(input: ParseCrInput): string {
+  const openTasksBlock =
+    input.openTasks && input.openTasks.length > 0
+      ? input.openTasks.map((t) => `- ${t.id}: ${t.title}`).join("\n")
+      : "(none)";
   return [
     SYSTEM_PROMPT,
     "",
@@ -54,6 +91,9 @@ export function buildPrompt(input: ParseCrInput): string {
     `Meeting date: ${input.meetingDate}`,
     `Attendees: ${input.attendees.join(", ")}`,
     `Language: ${input.language}`,
+    "",
+    "--- OPEN TASKS (id: title) ---",
+    openTasksBlock,
     "",
     "--- CR TEXT ---",
     input.rawText,
@@ -63,12 +103,15 @@ export function buildPrompt(input: ParseCrInput): string {
 export async function parseCr(input: ParseCrInput, llm: LlmClient): Promise<ParseCrOutput> {
   const prompt = buildPrompt(input);
   const raw = await llm.generateJson(prompt);
-  return normalizeParseOutput(raw);
+  // Only ids the LLM was actually shown are ever trusted — anything else it
+  // invented gets dropped, same defensive stance as the rest of this function.
+  const knownIds = new Set((input.openTasks ?? []).map((t) => t.id));
+  return normalizeParseOutput(raw, knownIds);
 }
 
 // Defensive normalization — LLM JSON output should match, but never trust it blindly.
-export function normalizeParseOutput(raw: unknown): ParseCrOutput {
-  const obj = raw as { tasks?: unknown[] };
+export function normalizeParseOutput(raw: unknown, knownOpenTaskIds?: Set<string>): ParseCrOutput {
+  const obj = raw as { tasks?: unknown[]; completedTaskIds?: unknown[]; delegatedToCalindeTaskIds?: unknown[] };
   const tasks: ParsedTaskCandidate[] = Array.isArray(obj?.tasks)
     ? obj.tasks.map((t) => {
         const task = t as Partial<ParsedTaskCandidate>;
@@ -80,10 +123,22 @@ export function normalizeParseOutput(raw: unknown): ParseCrOutput {
             ? task.priority
             : "Medium") as Priority,
           rationale: String(task.rationale ?? "").trim(),
+          delegateToCalinde: task.delegateToCalinde === true,
         };
       })
     : [];
-  return { tasks };
+
+  const filterKnownIds = (ids: unknown): string[] => {
+    if (!Array.isArray(ids)) return [];
+    const strs = ids.map((id) => String(id));
+    return knownOpenTaskIds ? strs.filter((id) => knownOpenTaskIds.has(id)) : strs;
+  };
+
+  return {
+    tasks,
+    completedTaskIds: filterKnownIds(obj?.completedTaskIds),
+    delegatedToCalindeTaskIds: filterKnownIds(obj?.delegatedToCalindeTaskIds),
+  };
 }
 
 // --- Real Gemini client (used in production; requires GEMINI_API_KEY) ---
