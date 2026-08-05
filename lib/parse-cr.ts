@@ -189,7 +189,21 @@ const DEFAULT_FREE_MODELS = [
   "nvidia/nemotron-3-nano-30b-a3b:free",
 ];
 
-const PER_MODEL_TIMEOUT_MS = 12_000;
+// 12s was too short for free-tier OpenRouter models (shared/queued capacity can
+// legitimately take 15-30s) AND timeouts weren't being retried across models at
+// all (see retryableOnNextModel below in the previous version) — a slow model
+// #1 killed the whole request instead of falling through to #2-4.
+const PER_MODEL_TIMEOUT_MS = 20_000;
+
+// Overall wall-clock budget across ALL model attempts combined, so a chain of
+// timeouts can't exceed Vercel's function maxDuration (set to 60s on the two
+// routes that call parseCr — see app/api/cr/parse/route.ts and
+// app/api/cr/webhook/route.ts). Leaves buffer for JSON parsing / response.
+const OVERALL_BUDGET_MS = 50_000;
+// Don't start a new model attempt if less than this much budget remains — an
+// attempt that's guaranteed to be killed mid-flight just wastes time and
+// produces a confusing error instead of a clean "ran out of time" message.
+const MIN_BUDGET_TO_ATTEMPT_MS = 5_000;
 
 function resolveModelList(): string[] {
   const fallbackList = process.env.OPENROUTER_MODEL_FALLBACKS?.trim();
@@ -212,27 +226,39 @@ export class OpenRouterClient implements LlmClient {
 
   async generateJson(prompt: string): Promise<unknown> {
     const errors: string[] = [];
+    const startedAt = Date.now();
+
     for (const model of this.models) {
+      const remaining = OVERALL_BUDGET_MS - (Date.now() - startedAt);
+      if (remaining < MIN_BUDGET_TO_ATTEMPT_MS) {
+        errors.push(`${model}: skipped — only ${Math.max(remaining, 0)}ms left in overall budget`);
+        break;
+      }
+
       try {
-        return await this.callModel(model, prompt);
+        return await this.callModel(model, prompt, Math.min(PER_MODEL_TIMEOUT_MS, remaining));
       } catch (e) {
         const msg = (e as Error).message;
         errors.push(`${model}: ${msg}`);
-        const retryableOnNextModel = /\b(429|404|5\d\d)\b/.test(msg) || /rate.?limit|temporarily/i.test(msg);
-        if (!retryableOnNextModel) {
+        // Timeouts are retryable (a slow/congested free model shouldn't kill the
+        // whole request), same as rate limits, not-found, and server errors.
+        // Only real auth failures (401) short-circuit, since they'd fail
+        // identically against every model.
+        const isAuthError = /\b401\b/.test(msg);
+        if (isAuthError) {
           throw new Error(`OpenRouter request failed (not retrying further models): ${msg}`);
         }
         // else: fall through and try the next model in the list
       }
     }
     throw new Error(
-      `All ${this.models.length} configured free model(s) failed:\n${errors.join("\n")}`
+      `All ${this.models.length} configured free model(s) failed within ${OVERALL_BUDGET_MS}ms budget:\n${errors.join("\n")}`
     );
   }
 
-  private async callModel(model: string, prompt: string): Promise<unknown> {
+  private async callModel(model: string, prompt: string, timeoutMs: number): Promise<unknown> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -259,7 +285,7 @@ export class OpenRouterClient implements LlmClient {
       return JSON.parse(match ? match[0] : text);
     } catch (e) {
       if ((e as Error).name === "AbortError") {
-        throw new Error(`timed out after ${PER_MODEL_TIMEOUT_MS}ms`);
+        throw new Error(`timed out after ${timeoutMs}ms`);
       }
       throw e;
     } finally {
