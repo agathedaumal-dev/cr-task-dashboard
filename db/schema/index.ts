@@ -66,6 +66,11 @@ export const interlocutors = pgTable("interlocutors", {
   whatTheyDo: text("what_they_do").notNull().default(""),
   // Fallback product tag used when keyword inference on a CR is inconclusive.
   defaultProductId: productIdEnum("default_product_id"),
+  // Optional shared-page grouping (e.g. "CRM", "Data", "Customer Care MRH").
+  // Interlocutors with the same team share one Interlocutor Hub page; each
+  // task is still attributed to the real individual (interlocutorId is
+  // unchanged) and the UI prefixes the task title with that person's name.
+  team: text("team"),
   // True for interlocutors seeded manually; false for ones auto-created
   // when a new name shows up in a CR (per the "prompt for new names" flow).
   isConfirmed: boolean("is_confirmed").notNull().default(true),

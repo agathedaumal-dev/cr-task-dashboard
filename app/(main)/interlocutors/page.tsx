@@ -15,7 +15,7 @@ export default async function InterlocutorsPage() {
 
   if (db) {
     const peopleRows = await db.select().from(interlocutors);
-    people = peopleRows.map((p) => ({ id: p.id, name: p.name, role: p.role, whatTheyDo: p.whatTheyDo }));
+    people = peopleRows.map((p) => ({ id: p.id, name: p.name, role: p.role, whatTheyDo: p.whatTheyDo, team: p.team }));
 
     const taskRows = await db.select().from(tasks).where(isNotNull(tasks.interlocutorId));
     followUps = taskRows

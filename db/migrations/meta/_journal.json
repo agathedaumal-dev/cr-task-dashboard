@@ -15,6 +15,13 @@
       "when": 1785923790503,
       "tag": "0001_legal_umar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785929250137,
+      "tag": "0002_last_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,10 @@ export interface InterlocutorData {
   name: string;
   role: string;
   whatTheyDo: string;
+  // Optional shared-page grouping — people with the same team show up as one
+  // sidebar entry and share one page; tasks stay attributed to the real
+  // individual and get that person's name prefixed on the card.
+  team?: string | null;
 }
 
 export type FollowUpType = "i-owe-them" | "they-owe-me" | "we-follow-together";
@@ -22,6 +26,15 @@ export interface FollowUpTask {
   status: "To Do" | "In Progress" | "Blocked" | "Done";
   crSourceTitle: string;
   crDate: string;
+}
+
+// A sidebar entry is either a single ungrouped person or a team of people who
+// share one page.
+interface SidebarEntry {
+  key: string;
+  label: string;
+  subtitle: string;
+  memberIds: string[];
 }
 
 async function patchTask(id: string, body: Record<string, unknown>) {
@@ -50,12 +63,48 @@ export function InterlocutorHub({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(interlocutors[0]?.id ?? null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   // Optimistic local overlay, same pattern as My To-Do, so a card visibly jumps
   // to its new column immediately instead of waiting for a full page refresh.
   const [overrides, setOverrides] = useState<Record<string, FollowUpType>>({});
   const [dragOverColumn, setDragOverColumn] = useState<FollowUpType | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const nameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of interlocutors) map[p.id] = p.name;
+    return map;
+  }, [interlocutors]);
+
+  // Group interlocutors into sidebar entries: one per team, one per ungrouped person.
+  const sidebarEntries = useMemo<SidebarEntry[]>(() => {
+    const teams = new Map<string, InterlocutorData[]>();
+    const solo: InterlocutorData[] = [];
+    for (const p of interlocutors) {
+      if (p.team) {
+        const list = teams.get(p.team) ?? [];
+        list.push(p);
+        teams.set(p.team, list);
+      } else {
+        solo.push(p);
+      }
+    }
+    const teamEntries: SidebarEntry[] = [...teams.entries()].map(([team, members]) => ({
+      key: `team:${team}`,
+      label: team,
+      subtitle: members.map((m) => m.name).join(", "),
+      memberIds: members.map((m) => m.id),
+    }));
+    const soloEntries: SidebarEntry[] = solo.map((p) => ({
+      key: `person:${p.id}`,
+      label: p.name,
+      subtitle: p.role,
+      memberIds: [p.id],
+    }));
+    return [...teamEntries, ...soloEntries].sort((a, b) => a.label.localeCompare(b.label));
+  }, [interlocutors]);
+
+  const effectiveSelectedKey = selectedKey ?? sidebarEntries[0]?.key ?? null;
 
   const effectiveTasks = useMemo(
     () =>
@@ -84,17 +133,29 @@ export function InterlocutorHub({
       });
   };
 
-  const filteredList = useMemo(
-    () => interlocutors.filter((i) => i.name.toLowerCase().includes(search.toLowerCase())),
-    [interlocutors, search]
+  const filteredEntries = useMemo(
+    () => sidebarEntries.filter((e) => e.label.toLowerCase().includes(search.toLowerCase())),
+    [sidebarEntries, search]
   );
 
-  const selected = interlocutors.find((i) => i.id === selectedId) ?? null;
-  const iOweThem = effectiveTasks.filter((t) => t.interlocutorId === selectedId && t.type === "i-owe-them");
-  const theyOweMe = effectiveTasks.filter((t) => t.interlocutorId === selectedId && t.type === "they-owe-me");
-  const weFollowTogether = effectiveTasks.filter(
-    (t) => t.interlocutorId === selectedId && t.type === "we-follow-together"
-  );
+  const selectedEntry = sidebarEntries.find((e) => e.key === effectiveSelectedKey) ?? null;
+  const memberIdSet = new Set(selectedEntry?.memberIds ?? []);
+  const isTeam = (selectedEntry?.memberIds.length ?? 0) > 1;
+
+  // Prefix a task's title with the owner's name only when viewing a team page
+  // (an ungrouped person's own page doesn't need their name repeated).
+  const withOwnerPrefix = (t: FollowUpTask) =>
+    isTeam ? { ...t, title: `[${nameById[t.interlocutorId] ?? "?"}] ${t.title}` } : t;
+
+  const iOweThem = effectiveTasks
+    .filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "i-owe-them")
+    .map(withOwnerPrefix);
+  const theyOweMe = effectiveTasks
+    .filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "they-owe-me")
+    .map(withOwnerPrefix);
+  const weFollowTogether = effectiveTasks
+    .filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "we-follow-together")
+    .map(withOwnerPrefix);
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -102,38 +163,39 @@ export function InterlocutorHub({
         <AddInterlocutorForm />
         <input
           type="text"
-          placeholder="Search interlocutors…"
+          placeholder="Search interlocutors or teams…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="mb-3 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-indigo-300 focus:outline-none"
         />
         <div className="space-y-1">
-          {filteredList.map((person) => (
+          {filteredEntries.map((entry) => (
             <button
-              key={person.id}
-              onClick={() => setSelectedId(person.id)}
+              key={entry.key}
+              onClick={() => setSelectedKey(entry.key)}
               className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${
-                person.id === selectedId
+                entry.key === effectiveSelectedKey
                   ? "bg-indigo-50 text-indigo-700"
                   : "text-slate-600 hover:bg-slate-50"
               }`}
             >
-              <div className="font-medium">{person.name}</div>
-              <div className="text-xs text-slate-400">{person.role}</div>
+              <div className="font-medium">{entry.label}</div>
+              <div className="truncate text-xs text-slate-400">{entry.subtitle}</div>
             </button>
           ))}
         </div>
       </aside>
 
       <main className="flex-1 p-8">
-        {!selected ? (
-          <p className="text-sm text-slate-400">Select an interlocutor.</p>
+        {!selectedEntry ? (
+          <p className="text-sm text-slate-400">Select an interlocutor or team.</p>
         ) : (
           <>
             <header className="mb-6">
-              <h1 className="text-2xl font-semibold text-slate-800">{selected.name}</h1>
-              <p className="text-sm text-slate-500">{selected.role}</p>
-              <p className="mt-1 text-sm text-slate-400">{selected.whatTheyDo}</p>
+              <h1 className="text-2xl font-semibold text-slate-800">{selectedEntry.label}</h1>
+              <p className="text-sm text-slate-500">
+                {isTeam ? `Shared page — ${selectedEntry.subtitle}` : selectedEntry.subtitle}
+              </p>
             </header>
 
             {errorMsg && (

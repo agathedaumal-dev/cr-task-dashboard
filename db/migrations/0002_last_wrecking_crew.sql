@@ -1,0 +1,1 @@
+ALTER TABLE "interlocutors" ADD COLUMN "team" text;
