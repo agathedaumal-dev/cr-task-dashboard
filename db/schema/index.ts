@@ -29,6 +29,7 @@ export const productIdEnum = pgEnum("product_id", [
   "carbon-comp-sp",
   "carbon-comp-it",
   "mrh",
+  "other",
 ]);
 
 export const priorityEnum = pgEnum("priority", ["High", "Medium", "Low"]);

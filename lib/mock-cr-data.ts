@@ -62,4 +62,5 @@ export const MOCK_PRODUCT_TASKS: Record<string, { mine: ProductTask[]; theirs: P
       { id: "f2", title: "Relance clients en résiliation", assignee: "Fatima Zahra", status: "In Progress", dueDate: iso(3), priority: "Medium", crSourceTitle: "Point hebdo MRH - Groupe Habitat", crDate: "2026-07-28" },
     ],
   },
+  other: { mine: [], theirs: [] },
 };

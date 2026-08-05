@@ -9,6 +9,7 @@ const PRODUCTS = [
   { value: "carbon-comp-sp", label: "Carbon Comp SP" },
   { value: "carbon-comp-it", label: "Carbon Comp IT" },
   { value: "mrh", label: "MRH" },
+  { value: "other", label: "Other" },
 ];
 
 export function AddInterlocutorForm() {

@@ -2,7 +2,7 @@
 // Framework-agnostic — no DB/Next.js imports — so it's unit-testable on its own
 // (see scripts/test-tagging-local.mjs).
 
-export type ProductId = "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh";
+export type ProductId = "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
 
 export interface InterlocutorRef {
   id: string;
@@ -44,6 +44,10 @@ const PRODUCT_KEYWORDS: Record<ProductId, string[]> = {
     "home insurance",
     "seguro de hogar",
   ],
+  // "Other" is a pure fallback bucket (partnerships, energy, B2B, anything
+  // outside the 4 named product lines) — never keyword-matched directly,
+  // only reached via the unresolved fallback below.
+  other: [],
 };
 
 // Generic product mentions with no country signal — used only to detect "this is
@@ -86,6 +90,7 @@ export function tagProduct({ crText, interlocutor }: TagProductInput): TagProduc
     return { productId: interlocutor.defaultProductId, method: "interlocutor-default" };
   }
 
-  // 4. Nothing to go on — caller should prompt the user to tag manually.
-  return { productId: null, method: "unresolved" };
+  // 4. Nothing to go on and no interlocutor default either — "Other" instead
+  // of silently guessing a named product line.
+  return { productId: "other", method: "unresolved" };
 }

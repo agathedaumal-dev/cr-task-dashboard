@@ -2,7 +2,7 @@
 // The LLM call is behind a small interface so this file can be unit-tested with
 // a mock implementation (see scripts/test-parse-local.mjs) without a live API key.
 
-export type ProductId = "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh";
+export type ProductId = "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
 export type Priority = "High" | "Medium" | "Low";
 export type Language = "en" | "fr" | "es";
 

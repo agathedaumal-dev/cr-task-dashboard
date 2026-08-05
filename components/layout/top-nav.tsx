@@ -77,6 +77,9 @@ export function TopNav() {
                     <ListItem href="/products/mrh" title="MRH">
                       My + their tasks for MRH.
                     </ListItem>
+                    <ListItem href="/products/other" title="Other">
+                      Anything outside the 4 named product lines.
+                    </ListItem>
                   </ul>
                 </NavigationMenuContent>
               </NavigationMenuItem>

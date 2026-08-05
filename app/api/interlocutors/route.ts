@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     name: string;
     role?: string;
     whatTheyDo?: string;
-    defaultProductId?: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | null;
+    defaultProductId?: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other" | null;
   };
   if (!name?.trim()) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });

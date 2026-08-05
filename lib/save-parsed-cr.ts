@@ -60,9 +60,9 @@ export async function saveParsedCr(input: SaveParsedCrInput) {
         title: candidate.title,
         assignee: candidate.assigneeName === "Me" ? "Me" : matchedInterlocutor?.id ?? candidate.assigneeName,
         interlocutorId: matchedInterlocutor?.id,
-        // TODO: when productId is unresolved, surface a "needs manual tag" flag
-        // in the UI instead of silently defaulting to MRH.
-        productId: productId ?? "mrh",
+        // tagProduct() now always returns a concrete ProductId (falls through to
+        // "other" itself when unresolved) — this ?? is just a type-safety belt.
+        productId: productId ?? "other",
         dueDate: candidate.dueDate ? new Date(candidate.dueDate) : null,
         priority: candidate.priority,
         // 'Me' + tied to an interlocutor -> I owe them. 'Me' with no interlocutor

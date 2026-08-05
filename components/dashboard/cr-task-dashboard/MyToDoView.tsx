@@ -7,7 +7,7 @@ import { groupTasksByBucket, type DueBucket } from "@/lib/due-date-buckets";
 export interface TaskCardData {
   id: string;
   title: string;
-  productId: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh";
+  productId: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
   dueDate: string | null;
   priority: "High" | "Medium" | "Low";
   status: "To Do" | "In Progress" | "Blocked" | "Done";
@@ -28,6 +28,7 @@ const PRODUCT_LABELS: Record<TaskCardData["productId"], string> = {
   "carbon-comp-sp": "Carbon Comp SP",
   "carbon-comp-it": "Carbon Comp IT",
   mrh: "MRH",
+  other: "Other",
 };
 
 const BUCKET_STYLES: Record<DueBucket, string> = {

@@ -1,6 +1,6 @@
 "use client";
 
-export type ProductId = "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh";
+export type ProductId = "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
 
 export interface ProductTask {
   id: string;
@@ -18,6 +18,7 @@ const PRODUCT_META: Record<ProductId, { label: string; flag: string }> = {
   "carbon-comp-sp": { label: "Carbon Comp — Spain", flag: "🇪🇸" },
   "carbon-comp-it": { label: "Carbon Comp — Italy", flag: "🇮🇹" },
   mrh: { label: "MRH", flag: "🏠" },
+  other: { label: "Other", flag: "📦" },
 };
 
 const STATUS_STYLES: Record<ProductTask["status"], string> = {

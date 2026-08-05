@@ -7,7 +7,7 @@ import { eq, and, ne } from "drizzle-orm";
 import { ProductHub, type ProductId, type ProductTask } from "@/components/dashboard/cr-task-dashboard/ProductHub";
 import { MOCK_PRODUCT_TASKS } from "@/lib/mock-cr-data";
 
-const VALID_PRODUCTS: ProductId[] = ["carbon-comp-fr", "carbon-comp-sp", "carbon-comp-it", "mrh"];
+const VALID_PRODUCTS: ProductId[] = ["carbon-comp-fr", "carbon-comp-sp", "carbon-comp-it", "mrh", "other"];
 
 export default async function ProductHubPage({ params }: { params: Promise<{ productId: string }> }) {
   const { productId } = await params;
