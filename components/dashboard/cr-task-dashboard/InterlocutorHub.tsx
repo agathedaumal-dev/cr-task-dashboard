@@ -300,32 +300,33 @@ export function InterlocutorHub({
             </p>
 
             <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <FollowUpColumn
-                  title="What I owe them"
-                  type="i-owe-them"
-                  accent="border-rose-200 bg-rose-50/40"
-                  items={iOweThem}
-                  isDragOver={dragOverColumn === "i-owe-them"}
-                  onDragOverColumn={setDragOverColumn}
-                  onDropTask={moveTask}
-                  onOpen={setOpenTaskId}
-                  draggingId={draggingId}
-                  setDraggingId={setDraggingId}
-                />
-                <FollowUpColumn
-                  title="What they owe me"
-                  type="they-owe-me"
-                  accent="border-amber-200 bg-amber-50/40"
-                  items={theyOweMe}
-                  isDragOver={dragOverColumn === "they-owe-me"}
-                  onDragOverColumn={setDragOverColumn}
-                  onDropTask={moveTask}
-                  onOpen={setOpenTaskId}
-                  draggingId={draggingId}
-                  setDraggingId={setDraggingId}
-                />
-              </div>
+              {/* Stacked vertically (not side-by-side) so each box's height
+                  can shrink to fit its own content — an empty box stays
+                  small instead of matching a taller neighbour. */}
+              <FollowUpColumn
+                title="What they owe me"
+                type="they-owe-me"
+                accent="border-amber-200 bg-amber-50/40"
+                items={theyOweMe}
+                isDragOver={dragOverColumn === "they-owe-me"}
+                onDragOverColumn={setDragOverColumn}
+                onDropTask={moveTask}
+                onOpen={setOpenTaskId}
+                draggingId={draggingId}
+                setDraggingId={setDraggingId}
+              />
+              <FollowUpColumn
+                title="What I owe them"
+                type="i-owe-them"
+                accent="border-rose-200 bg-rose-50/40"
+                items={iOweThem}
+                isDragOver={dragOverColumn === "i-owe-them"}
+                onDragOverColumn={setDragOverColumn}
+                onDropTask={moveTask}
+                onOpen={setOpenTaskId}
+                draggingId={draggingId}
+                setDraggingId={setDraggingId}
+              />
               <FollowUpColumn
                 title="What we follow together"
                 type="we-follow-together"
@@ -337,7 +338,6 @@ export function InterlocutorHub({
                 onOpen={setOpenTaskId}
                 draggingId={draggingId}
                 setDraggingId={setDraggingId}
-                compact
               />
 
               {delegatedIn.length > 0 && (
