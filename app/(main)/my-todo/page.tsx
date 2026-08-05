@@ -33,12 +33,25 @@ export default async function MyToDoPage() {
       const knownInterlocutors = await db.select().from(interlocutors);
       interlocutorOptions = knownInterlocutors.map((i) => ({ id: i.id, name: i.name }));
     } catch (err) {
+      // Drizzle wraps the real Postgres error in `.cause` — the top-level
+      // message is just "Failed query: ...". Surface everything useful.
+      const cause = err instanceof Error ? (err.cause as Record<string, unknown> | undefined) : undefined;
+      const details = {
+        message: err instanceof Error ? err.message : String(err),
+        causeMessage: cause && "message" in cause ? String(cause.message) : undefined,
+        code: cause?.code,
+        detail: cause?.detail,
+        hint: cause?.hint,
+        table: cause?.table,
+        column: cause?.column,
+        constraint: cause?.constraint,
+      };
       return (
         <div className="min-h-screen bg-slate-50 p-8">
           <div className="mx-auto max-w-2xl rounded-xl border border-rose-200 bg-rose-50 p-6">
             <h1 className="mb-2 text-lg font-semibold text-rose-800">My To-Do failed to load</h1>
             <pre className="whitespace-pre-wrap break-words text-sm text-rose-700">
-              {err instanceof Error ? `${err.name}: ${err.message}` : String(err)}
+              {JSON.stringify(details, null, 2)}
             </pre>
           </div>
         </div>
