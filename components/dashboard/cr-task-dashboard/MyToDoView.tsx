@@ -11,8 +11,15 @@ export interface TaskCardData {
   dueDate: string | null;
   priority: "High" | "Medium" | "Low";
   status: "To Do" | "In Progress" | "Blocked" | "Done";
+  type: "my-todo" | "i-owe-them" | "they-owe-me" | "we-follow-together";
+  assignee: string; // "Me" or an interlocutors.id
   crSourceTitle: string;
   crDate: string;
+}
+
+export interface InterlocutorOption {
+  id: string;
+  name: string;
 }
 
 const BUCKET_ORDER: DueBucket[] = ["Overdue", "Today", "This Week", "Upcoming", "TBD"];
@@ -29,6 +36,13 @@ const PRODUCT_LABELS: Record<TaskCardData["productId"], string> = {
   "carbon-comp-it": "Carbon Comp IT",
   mrh: "MRH",
   other: "Other",
+};
+
+const TYPE_LABELS: Record<TaskCardData["type"], string> = {
+  "my-todo": "My To-Do",
+  "i-owe-them": "I Owe Them",
+  "they-owe-me": "They Owe Me",
+  "we-follow-together": "We Follow Together",
 };
 
 const BUCKET_STYLES: Record<DueBucket, string> = {
@@ -51,7 +65,13 @@ async function patchTask(id: string, body: Record<string, unknown>) {
   }
 }
 
-export function MyToDoView({ tasks }: { tasks: TaskCardData[] }) {
+export function MyToDoView({
+  tasks,
+  interlocutors = [],
+}: {
+  tasks: TaskCardData[];
+  interlocutors?: InterlocutorOption[];
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [priorityFilter, setPriorityFilter] = useState<"All" | TaskCardData["priority"]>("All");
@@ -59,6 +79,9 @@ export function MyToDoView({ tasks }: { tasks: TaskCardData[] }) {
   // Optimistic local overlay so the UI feels instant while the PATCH is in flight.
   const [overrides, setOverrides] = useState<Record<string, Partial<TaskCardData>>>({});
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Which task's title is currently being edited inline (only one at a time).
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
 
   const effectiveTasks = useMemo(
     () => tasks.map((t) => ({ ...t, ...overrides[t.id] })),
@@ -84,6 +107,34 @@ export function MyToDoView({ tasks }: { tasks: TaskCardData[] }) {
 
   const editPriority = (task: TaskCardData, newPriority: TaskCardData["priority"]) => {
     applyUpdate(task.id, { priority: newPriority }, { priority: newPriority });
+  };
+
+  const editProduct = (task: TaskCardData, newProductId: TaskCardData["productId"]) => {
+    applyUpdate(task.id, { productId: newProductId }, { productId: newProductId });
+  };
+
+  const editType = (task: TaskCardData, newType: TaskCardData["type"]) => {
+    applyUpdate(task.id, { type: newType }, { type: newType });
+  };
+
+  const editAssignee = (task: TaskCardData, newAssignee: string) => {
+    // Reassigning away from "Me" will make this task disappear from My To-Do on
+    // the next refresh (this page only shows assignee === "Me") — expected,
+    // it now belongs on that interlocutor's follow-up list instead.
+    applyUpdate(task.id, { assignee: newAssignee }, { assignee: newAssignee });
+  };
+
+  const startEditingTitle = (task: TaskCardData) => {
+    setEditingTitleId(task.id);
+    setDraftTitle(task.title);
+  };
+
+  const commitTitle = (task: TaskCardData) => {
+    const trimmed = draftTitle.trim();
+    setEditingTitleId(null);
+    if (trimmed && trimmed !== task.title) {
+      applyUpdate(task.id, { title: trimmed }, { title: trimmed });
+    }
   };
 
   const filtered = useMemo(() => {
@@ -142,25 +193,76 @@ export function MyToDoView({ tasks }: { tasks: TaskCardData[] }) {
                     key={task.id}
                     className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-1 min-w-[240px] items-start gap-3">
                       <input
                         type="checkbox"
                         checked={task.status === "Done"}
                         onChange={() => toggleDone(task)}
-                        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-400"
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-400"
                       />
-                      <div>
-                        <p
-                          className={`text-sm font-medium ${
-                            task.status === "Done" ? "text-slate-400 line-through" : "text-slate-800"
-                          }`}
-                        >
-                          {task.title}
+                      <div className="flex-1">
+                        {editingTitleId === task.id ? (
+                          <input
+                            autoFocus
+                            value={draftTitle}
+                            onChange={(e) => setDraftTitle(e.target.value)}
+                            onBlur={() => commitTitle(task)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.currentTarget.blur();
+                              if (e.key === "Escape") setEditingTitleId(null);
+                            }}
+                            className="w-full rounded border border-indigo-300 px-1.5 py-0.5 text-sm font-medium text-slate-800 focus:outline-none"
+                          />
+                        ) : (
+                          <p
+                            onClick={() => startEditingTitle(task)}
+                            title="Click to edit"
+                            className={`cursor-text text-sm font-medium hover:bg-slate-50 rounded px-1 -mx-1 ${
+                              task.status === "Done" ? "text-slate-400 line-through" : "text-slate-800"
+                            }`}
+                          >
+                            {task.title}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-slate-400">
+                          from <span className="italic">{task.crSourceTitle}</span> ({task.crDate})
                         </p>
-                        <p className="text-xs text-slate-400">
-                          {PRODUCT_LABELS[task.productId]} · from{" "}
-                          <span className="italic">{task.crSourceTitle}</span> ({task.crDate})
-                        </p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <select
+                            value={task.productId}
+                            onChange={(e) => editProduct(task, e.target.value as TaskCardData["productId"])}
+                            className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600"
+                          >
+                            {Object.entries(PRODUCT_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={task.type}
+                            onChange={(e) => editType(task, e.target.value as TaskCardData["type"])}
+                            className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600"
+                          >
+                            {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={task.assignee}
+                            onChange={(e) => editAssignee(task, e.target.value)}
+                            className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs text-slate-600"
+                          >
+                            <option value="Me">Me</option>
+                            {interlocutors.map((i) => (
+                              <option key={i.id} value={i.id}>
+                                {i.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 const ALLOWED_STATUS = ["To Do", "In Progress", "Blocked", "Done"] as const;
 const ALLOWED_PRIORITY = ["High", "Medium", "Low"] as const;
 const ALLOWED_TYPE = ["my-todo", "i-owe-them", "they-owe-me", "we-follow-together"] as const;
+const ALLOWED_PRODUCT = ["carbon-comp-fr", "carbon-comp-sp", "carbon-comp-it", "mrh", "other"] as const;
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!db) {
@@ -44,6 +45,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   if (body.title !== undefined) {
     updates.title = String(body.title);
+  }
+  if (body.productId !== undefined) {
+    if (!ALLOWED_PRODUCT.includes(body.productId)) {
+      return NextResponse.json({ error: "invalid productId" }, { status: 400 });
+    }
+    updates.productId = body.productId;
+  }
+  // "Me" or an interlocutors.id, chosen from a dropdown — never free text from
+  // the client, so no separate format validation beyond non-empty.
+  if (body.assignee !== undefined) {
+    const assignee = String(body.assignee).trim();
+    if (!assignee) {
+      return NextResponse.json({ error: "assignee cannot be empty" }, { status: 400 });
+    }
+    updates.assignee = assignee;
+    updates.interlocutorId = assignee === "Me" ? null : assignee;
   }
 
   if (Object.keys(updates).length === 0) {

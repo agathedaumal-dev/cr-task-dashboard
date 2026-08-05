@@ -21,11 +21,11 @@ export const MOCK_INTERLOCUTORS: InterlocutorData[] = [
 ];
 
 export const MOCK_MY_TODO_TASKS: TaskCardData[] = [
-  { id: "t1", title: "Send recouvrement report to Julien", productId: "mrh", dueDate: iso(-2), priority: "High", status: "To Do", crSourceTitle: "Point hebdo MRH - Groupe Habitat", crDate: "2026-07-28" },
-  { id: "t2", title: "Prepare impayés slide for the Aug 15 committee", productId: "mrh", dueDate: iso(0), priority: "Medium", status: "To Do", crSourceTitle: "Point hebdo MRH - Groupe Habitat", crDate: "2026-07-28" },
-  { id: "t3", title: "Send updated pricing sheet to Luca", productId: "carbon-comp-it", dueDate: iso(1), priority: "High", status: "To Do", crSourceTitle: "Carbon Comp Italy sync", crDate: "2026-07-30" },
-  { id: "t4", title: "Send updated report to Marta", productId: "carbon-comp-sp", dueDate: iso(4), priority: "Medium", status: "To Do", crSourceTitle: "Seguimiento Carbon Comp España", crDate: "2026-07-29" },
-  { id: "t5", title: "Pick a date for the next joint committee", productId: "carbon-comp-sp", dueDate: null, priority: "Low", status: "To Do", crSourceTitle: "Seguimiento Carbon Comp España", crDate: "2026-07-29" },
+  { id: "t1", title: "Send recouvrement report to Julien", productId: "mrh", dueDate: iso(-2), priority: "High", status: "To Do", type: "my-todo", assignee: "Me", crSourceTitle: "Point hebdo MRH - Groupe Habitat", crDate: "2026-07-28" },
+  { id: "t2", title: "Prepare impayés slide for the Aug 15 committee", productId: "mrh", dueDate: iso(0), priority: "Medium", status: "To Do", type: "my-todo", assignee: "Me", crSourceTitle: "Point hebdo MRH - Groupe Habitat", crDate: "2026-07-28" },
+  { id: "t3", title: "Send updated pricing sheet to Luca", productId: "carbon-comp-it", dueDate: iso(1), priority: "High", status: "To Do", type: "my-todo", assignee: "Me", crSourceTitle: "Carbon Comp Italy sync", crDate: "2026-07-30" },
+  { id: "t4", title: "Send updated report to Marta", productId: "carbon-comp-sp", dueDate: iso(4), priority: "Medium", status: "To Do", type: "my-todo", assignee: "Me", crSourceTitle: "Seguimiento Carbon Comp España", crDate: "2026-07-29" },
+  { id: "t5", title: "Pick a date for the next joint committee", productId: "carbon-comp-sp", dueDate: null, priority: "Low", status: "To Do", type: "my-todo", assignee: "Me", crSourceTitle: "Seguimiento Carbon Comp España", crDate: "2026-07-29" },
 ];
 
 export const MOCK_FOLLOWUP_TASKS: FollowUpTask[] = [
