@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { tasks } from "@/db/schema";
+import { tasks, interlocutors } from "@/db/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { ProductHub, type ProductId, type ProductTask } from "@/components/dashboard/cr-task-dashboard/ProductHub";
 import { MOCK_PRODUCT_TASKS } from "@/lib/mock-cr-data";
@@ -16,8 +16,14 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
 
   let mine: ProductTask[] = MOCK_PRODUCT_TASKS[typedProductId]?.mine ?? [];
   let theirs: ProductTask[] = MOCK_PRODUCT_TASKS[typedProductId]?.theirs ?? [];
+  let interlocutorOptions: { id: string; name: string }[] = [];
 
   if (db) {
+    const knownInterlocutors = await db.select().from(interlocutors);
+    interlocutorOptions = knownInterlocutors.map((i) => ({ id: i.id, name: i.name }));
+    const nameById: Record<string, string> = {};
+    for (const i of knownInterlocutors) nameById[i.id] = i.name;
+
     const mineRows = await db
       .select()
       .from(tasks)
@@ -31,9 +37,12 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
       id: r.id,
       title: r.title,
       assignee: r.assignee,
+      assigneeName: r.assignee === "Me" ? "Me" : nameById[r.assignee] ?? r.assignee,
+      type: r.type,
       status: r.status,
       dueDate: r.dueDate ? r.dueDate.toISOString().slice(0, 10) : null,
       priority: r.priority,
+      delegatedTo: r.delegatedTo,
       crSourceTitle: r.crSourceTitle,
       crDate: r.crDate.toISOString().slice(0, 10),
     });
@@ -42,5 +51,12 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
     theirs = theirsRows.map(toCard);
   }
 
-  return <ProductHub productId={typedProductId} myTasks={mine} interlocutorTasks={theirs} />;
+  return (
+    <ProductHub
+      productId={typedProductId}
+      myTasks={mine}
+      interlocutorTasks={theirs}
+      interlocutors={interlocutorOptions}
+    />
+  );
 }

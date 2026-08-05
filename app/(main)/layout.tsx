@@ -1,4 +1,5 @@
 import { TopNav } from "@/components/layout/top-nav"
+import { NotesWidget } from "@/components/dashboard/cr-task-dashboard/NotesWidget"
 import { Toaster } from "@/components/ui/sonner"
 import { appConfig } from "@/lib/app-config";
 
@@ -18,6 +19,8 @@ export default function MainLayout({
       <footer className="py-6 text-center text-xs text-muted-foreground border-t bg-card">
         <p>© {appConfig.appName} - personal deployment.</p>
       </footer>
+
+      <NotesWidget />
 
       <Toaster
         position="bottom-right"

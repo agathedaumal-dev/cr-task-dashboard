@@ -100,9 +100,23 @@ export const tasks = pgTable("cr_tasks", {
   priority: priorityEnum("priority").notNull().default("Medium"),
   status: statusEnum("status").notNull().default("To Do"),
   type: taskTypeEnum("type").notNull().default("my-todo"),
+  // Delegation: task stays exactly where it is (assignee/interlocutorId/type
+  // unchanged) but also shows up on this interlocutor's page, greyed out with
+  // their name tagged, so the original owner (e.g. Agathe, as manager) keeps
+  // following it while the delegate also sees it as their own.
+  delegatedTo: uuid("delegated_to").references(() => interlocutors.id),
   crId: uuid("cr_id").references(() => meetingCrs.id),
   crSourceTitle: text("cr_source_title").notNull(),
   crDate: timestamp("cr_date").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Single global scratchpad note — deliberately NOT tied to any task, so
+// jotting a thought down never touches task/progress data. Always exactly one
+// row (the app upserts row id 'global' on save).
+export const scratchNotes = pgTable("scratch_notes", {
+  id: text("id").primaryKey(),
+  content: text("content").notNull().default(""),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

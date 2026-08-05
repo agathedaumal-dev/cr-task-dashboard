@@ -22,6 +22,13 @@
       "when": 1785929250137,
       "tag": "0002_last_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785930522569,
+      "tag": "0003_lying_the_professor",
+      "breakpoints": true
     }
   ]
 }

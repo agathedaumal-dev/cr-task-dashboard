@@ -62,6 +62,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     updates.assignee = assignee;
     updates.interlocutorId = assignee === "Me" ? null : assignee;
   }
+  // Delegation: an interlocutors.id, or null to clear it. Does NOT touch
+  // assignee/interlocutorId/type — the task keeps showing on the original
+  // owner's page (greyed out with the delegate's name tagged) while also
+  // appearing on the delegate's Interlocutor Hub page.
+  if (body.delegatedTo !== undefined) {
+    updates.delegatedTo = body.delegatedTo ? String(body.delegatedTo) : null;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "no valid fields to update" }, { status: 400 });

@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AddInterlocutorForm } from "./AddInterlocutorForm";
+import { TaskEditModal, type EditableTask, type InterlocutorOption } from "./TaskEditModal";
 
 export interface InterlocutorData {
   id: string;
@@ -22,6 +23,28 @@ export interface FollowUpTask {
   interlocutorId: string;
   title: string;
   type: FollowUpType;
+  productId: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
+  priority: "High" | "Medium" | "Low";
+  assignee: string;
+  dueDate: string | null;
+  status: "To Do" | "In Progress" | "Blocked" | "Done";
+  delegatedTo: string | null;
+  crSourceTitle: string;
+  crDate: string;
+}
+
+// A task originally owned by someone else (assignee/type/interlocutorId
+// unchanged) but delegated to this interlocutor, so it also shows up here,
+// greyed out, tagged with who it's really still owned/followed by.
+export interface DelegatedInTask {
+  id: string;
+  delegateeId: string; // the interlocutor this was delegated to
+  ownerLabel: string; // display name of whoever still owns/follows it (e.g. "Agathe")
+  title: string;
+  productId: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
+  type: "my-todo" | "i-owe-them" | "they-owe-me" | "we-follow-together";
+  assignee: string;
+  priority: "High" | "Medium" | "Low";
   dueDate: string | null;
   status: "To Do" | "In Progress" | "Blocked" | "Done";
   crSourceTitle: string;
@@ -36,6 +59,15 @@ interface SidebarEntry {
   subtitle: string;
   memberIds: string[];
 }
+
+const STATUS_STYLES: Record<FollowUpTask["status"], string> = {
+  "To Do": "bg-slate-100 text-slate-600",
+  "In Progress": "bg-indigo-100 text-indigo-700",
+  Blocked: "bg-rose-100 text-rose-700",
+  Done: "bg-emerald-100 text-emerald-700",
+};
+
+const STATUS_OPTIONS: (FollowUpTask["status"] | "All")[] = ["All", "To Do", "In Progress", "Blocked", "Done"];
 
 async function patchTask(id: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/tasks/${id}`, {
@@ -56,19 +88,26 @@ const DRAG_MIME = "application/x-cr-task-id";
 export function InterlocutorHub({
   interlocutors,
   tasks,
+  delegatedTasks = [],
 }: {
   interlocutors: InterlocutorData[];
   tasks: FollowUpTask[];
+  delegatedTasks?: DelegatedInTask[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<FollowUpTask["status"] | "All">("All");
   // Optimistic local overlay, same pattern as My To-Do, so a card visibly jumps
   // to its new column immediately instead of waiting for a full page refresh.
-  const [overrides, setOverrides] = useState<Record<string, FollowUpType>>({});
+  const [overrides, setOverrides] = useState<Record<string, Partial<FollowUpTask>>>({});
   const [dragOverColumn, setDragOverColumn] = useState<FollowUpType | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const interlocutorOptions: InterlocutorOption[] = interlocutors.map((i) => ({ id: i.id, name: i.name }));
 
   const nameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -107,18 +146,14 @@ export function InterlocutorHub({
   const effectiveSelectedKey = selectedKey ?? sidebarEntries[0]?.key ?? null;
 
   const effectiveTasks = useMemo(
-    () =>
-      tasks.map((t) => {
-        const override = overrides[t.id];
-        return override ? { ...t, type: override } : t;
-      }),
+    () => tasks.map((t) => ({ ...t, ...overrides[t.id] })),
     [tasks, overrides]
   );
 
   const moveTask = (taskId: string, newType: FollowUpType) => {
     const task = effectiveTasks.find((t) => t.id === taskId);
     if (!task || task.type === newType) return;
-    setOverrides((prev) => ({ ...prev, [taskId]: newType }));
+    setOverrides((prev) => ({ ...prev, [taskId]: { ...prev[taskId], type: newType } }));
     setErrorMsg(null);
     patchTask(taskId, { type: newType })
       .then(() => startTransition(() => router.refresh()))
@@ -147,15 +182,58 @@ export function InterlocutorHub({
   const withOwnerPrefix = (t: FollowUpTask) =>
     isTeam ? { ...t, title: `[${nameById[t.interlocutorId] ?? "?"}] ${t.title}` } : t;
 
-  const iOweThem = effectiveTasks
-    .filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "i-owe-them")
-    .map(withOwnerPrefix);
-  const theyOweMe = effectiveTasks
-    .filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "they-owe-me")
-    .map(withOwnerPrefix);
-  const weFollowTogether = effectiveTasks
-    .filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "we-follow-together")
-    .map(withOwnerPrefix);
+  const applyStatusFilter = (list: FollowUpTask[]) =>
+    statusFilter === "All" ? list : list.filter((t) => t.status === statusFilter);
+
+  const iOweThem = applyStatusFilter(
+    effectiveTasks.filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "i-owe-them")
+  ).map(withOwnerPrefix);
+  const theyOweMe = applyStatusFilter(
+    effectiveTasks.filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "they-owe-me")
+  ).map(withOwnerPrefix);
+  const weFollowTogether = applyStatusFilter(
+    effectiveTasks.filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "we-follow-together")
+  ).map(withOwnerPrefix);
+
+  const delegatedIn = delegatedTasks.filter((t) => memberIdSet.has(t.delegateeId));
+
+  const openFollowUp = effectiveTasks.find((t) => t.id === openTaskId);
+  const openDelegated = delegatedTasks.find((t) => t.id === openTaskId);
+  const editableTask: EditableTask | null = openFollowUp
+    ? {
+        id: openFollowUp.id,
+        title: openFollowUp.title,
+        productId: openFollowUp.productId,
+        type: openFollowUp.type,
+        assignee: openFollowUp.assignee,
+        priority: openFollowUp.priority,
+        status: openFollowUp.status,
+        dueDate: openFollowUp.dueDate,
+        delegatedTo: openFollowUp.delegatedTo,
+        crSourceTitle: openFollowUp.crSourceTitle,
+        crDate: openFollowUp.crDate,
+      }
+    : openDelegated
+      ? {
+          id: openDelegated.id,
+          title: openDelegated.title,
+          productId: openDelegated.productId,
+          type: openDelegated.type,
+          assignee: openDelegated.assignee,
+          priority: openDelegated.priority,
+          status: openDelegated.status,
+          dueDate: openDelegated.dueDate,
+          delegatedTo: openDelegated.delegateeId,
+          crSourceTitle: openDelegated.crSourceTitle,
+          crDate: openDelegated.crDate,
+        }
+      : null;
+
+  const onSaved = (updated: Partial<EditableTask>) => {
+    if (!openTaskId) return;
+    setOverrides((prev) => ({ ...prev, [openTaskId]: { ...prev[openTaskId], ...updated } as Partial<FollowUpTask> }));
+    startTransition(() => router.refresh());
+  };
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -191,11 +269,24 @@ export function InterlocutorHub({
           <p className="text-sm text-slate-400">Select an interlocutor or team.</p>
         ) : (
           <>
-            <header className="mb-6">
-              <h1 className="text-2xl font-semibold text-slate-800">{selectedEntry.label}</h1>
-              <p className="text-sm text-slate-500">
-                {isTeam ? `Shared page — ${selectedEntry.subtitle}` : selectedEntry.subtitle}
-              </p>
+            <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h1 className="text-2xl font-semibold text-slate-800">{selectedEntry.label}</h1>
+                <p className="text-sm text-slate-500">
+                  {isTeam ? `Shared page — ${selectedEntry.subtitle}` : selectedEntry.subtitle}
+                </p>
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-indigo-300 focus:outline-none"
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s === "All" ? "All statuses" : s}
+                  </option>
+                ))}
+              </select>
             </header>
 
             {errorMsg && (
@@ -205,7 +296,7 @@ export function InterlocutorHub({
             )}
 
             <p className="mb-3 text-xs text-slate-400">
-              Drag a task card and drop it into a different box to move it — no need to open anything.
+              Drag a card to move it between boxes, or click it to open the full editor.
             </p>
 
             <div className="space-y-4">
@@ -218,6 +309,9 @@ export function InterlocutorHub({
                   isDragOver={dragOverColumn === "i-owe-them"}
                   onDragOverColumn={setDragOverColumn}
                   onDropTask={moveTask}
+                  onOpen={setOpenTaskId}
+                  draggingId={draggingId}
+                  setDraggingId={setDraggingId}
                 />
                 <FollowUpColumn
                   title="What they owe me"
@@ -227,6 +321,9 @@ export function InterlocutorHub({
                   isDragOver={dragOverColumn === "they-owe-me"}
                   onDragOverColumn={setDragOverColumn}
                   onDropTask={moveTask}
+                  onOpen={setOpenTaskId}
+                  draggingId={draggingId}
+                  setDraggingId={setDraggingId}
                 />
               </div>
               <FollowUpColumn
@@ -237,12 +334,55 @@ export function InterlocutorHub({
                 isDragOver={dragOverColumn === "we-follow-together"}
                 onDragOverColumn={setDragOverColumn}
                 onDropTask={moveTask}
+                onOpen={setOpenTaskId}
+                draggingId={draggingId}
+                setDraggingId={setDraggingId}
                 compact
               />
+
+              {delegatedIn.length > 0 && (
+                <section className="rounded-2xl border border-slate-200 bg-slate-100/60 p-4">
+                  <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Delegated to {isTeam ? "them" : selectedEntry.label}{" "}
+                    <span className="text-slate-400">({delegatedIn.length})</span>
+                  </h2>
+                  <div className="space-y-2">
+                    {delegatedIn.map((task) => (
+                      <div
+                        key={task.id}
+                        onClick={() => setOpenTaskId(task.id)}
+                        className="cursor-pointer rounded-xl border border-slate-200 bg-white/70 px-3 py-2 hover:border-indigo-200"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-slate-500">{task.title}</p>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status]}`}
+                          >
+                            {task.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Still followed by {task.ownerLabel} · Due {task.dueDate ?? "TBD"} · from{" "}
+                          <span className="italic">{task.crSourceTitle}</span> ({task.crDate})
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           </>
         )}
       </main>
+
+      {editableTask && (
+        <TaskEditModal
+          task={editableTask}
+          interlocutors={interlocutorOptions}
+          onClose={() => setOpenTaskId(null)}
+          onSaved={onSaved}
+        />
+      )}
     </div>
   );
 }
@@ -256,6 +396,9 @@ function FollowUpColumn({
   isDragOver,
   onDragOverColumn,
   onDropTask,
+  onOpen,
+  draggingId,
+  setDraggingId,
 }: {
   title: string;
   type: FollowUpType;
@@ -265,6 +408,9 @@ function FollowUpColumn({
   isDragOver: boolean;
   onDragOverColumn: (type: FollowUpType | null) => void;
   onDropTask: (taskId: string, newType: FollowUpType) => void;
+  onOpen: (id: string) => void;
+  draggingId: string | null;
+  setDraggingId: (id: string | null) => void;
 }) {
   return (
     <section
@@ -293,31 +439,52 @@ function FollowUpColumn({
         <p className="text-sm text-slate-400">{isDragOver ? "Drop here" : "Nothing pending."}</p>
       ) : (
         <div className={compact ? "flex flex-wrap gap-2" : "space-y-2"}>
-          {items.map((task) => (
-            <div
-              key={task.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData(DRAG_MIME, task.id);
-                e.dataTransfer.effectAllowed = "move";
-              }}
-              className={`cursor-grab active:cursor-grabbing ${
-                compact
-                  ? "rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
-                  : "rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm"
-              }`}
-            >
-              <p className={compact ? "font-medium text-slate-800" : "text-sm font-medium text-slate-800"}>
-                {task.title}
-              </p>
-              {!compact && (
-                <p className="text-xs text-slate-400">
-                  Due {task.dueDate ?? "TBD"} · from <span className="italic">{task.crSourceTitle}</span> (
-                  {task.crDate})
-                </p>
-              )}
-            </div>
-          ))}
+          {items.map((task) => {
+            const isDelegated = Boolean(task.delegatedTo);
+            return (
+              <div
+                key={task.id}
+                draggable
+                onDragStart={(e) => {
+                  setDraggingId(task.id);
+                  e.dataTransfer.setData(DRAG_MIME, task.id);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => setDraggingId(null)}
+                onClick={() => {
+                  // A real drag sets draggingId before any click fires; only
+                  // treat this as "open" when it wasn't a drag gesture.
+                  if (draggingId !== task.id) onOpen(task.id);
+                }}
+                className={`cursor-grab active:cursor-grabbing ${
+                  compact
+                    ? "rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
+                    : "rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm"
+                } ${isDelegated ? "bg-slate-100/70" : ""} hover:border-indigo-200`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p
+                    className={
+                      compact
+                        ? `font-medium ${isDelegated ? "text-slate-500" : "text-slate-800"}`
+                        : `text-sm font-medium ${isDelegated ? "text-slate-500" : "text-slate-800"}`
+                    }
+                  >
+                    {task.title}
+                  </p>
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${STATUS_STYLES[task.status]}`}>
+                    {task.status}
+                  </span>
+                </div>
+                {!compact && (
+                  <p className="text-xs text-slate-400">
+                    Due {task.dueDate ?? "TBD"} · from <span className="italic">{task.crSourceTitle}</span> (
+                    {task.crDate})
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </section>
