@@ -89,6 +89,12 @@ export function TaskEditModal({
     return interlocutors.find((i) => i.id === id)?.name ?? id;
   };
 
+  // Delegation is a single-click toggle to Calindé specifically — not a
+  // general-purpose dropdown — since she's the only person tasks ever get
+  // delegated to. Defaults to "not delegated" (task stays fully yours).
+  const calinde = interlocutors.find((i) => i.name.toLowerCase().startsWith("calind"));
+  const isDelegatedToCalinde = Boolean(calinde) && draft.delegatedTo === calinde!.id;
+
   const field = (key: keyof EditableTask, value: unknown) => {
     setDraft((prev) => ({ ...prev, [key]: value }) as EditableTask);
     setError(null);
@@ -220,23 +226,25 @@ export function TaskEditModal({
             </select>
           </Field>
 
-          <Field label="Delegate to" full>
-            <select
-              value={draft.delegatedTo ?? ""}
-              onChange={(e) => field("delegatedTo", e.target.value || null)}
-              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-            >
-              <option value="">— none, I own this myself —</option>
-              {interlocutors.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name}
-                </option>
-              ))}
-            </select>
-            {draft.delegatedTo && (
+          <Field label="Delegation" full>
+            {calinde ? (
+              <button
+                type="button"
+                onClick={() => field("delegatedTo", isDelegatedToCalinde ? null : calinde.id)}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                  isDelegatedToCalinde
+                    ? "border-slate-300 bg-slate-200 text-slate-600"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300"
+                }`}
+              >
+                {isDelegatedToCalinde ? "✓ Delegated to Calindé — click to undo" : "Delegate to Calindé"}
+              </button>
+            ) : (
+              <p className="text-xs text-slate-400">No &quot;Calindé&quot; interlocutor found.</p>
+            )}
+            {isDelegatedToCalinde && (
               <p className="mt-1 text-xs text-slate-400">
-                Still shows on your page (greyed out), and now also appears on{" "}
-                {nameById(draft.delegatedTo)}&apos;s Interlocutor Hub page.
+                Still shows on your page (greyed out), and now also appears on Calindé&apos;s Interlocutor Hub page.
               </p>
             )}
           </Field>

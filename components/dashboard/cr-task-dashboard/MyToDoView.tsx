@@ -100,6 +100,14 @@ export function MyToDoView({
     return map;
   }, [interlocutors]);
 
+  // Delegation is a single-click toggle to Calindé specifically, not a
+  // general-purpose dropdown — she's the only person tasks get delegated to.
+  // Defaults to "not delegated" (task stays fully yours).
+  const calinde = useMemo(
+    () => interlocutors.find((i) => i.name.toLowerCase().startsWith("calind")),
+    [interlocutors]
+  );
+
   const effectiveTasks = useMemo(
     () => tasks.map((t) => ({ ...t, ...overrides[t.id] })),
     [tasks, overrides]
@@ -333,19 +341,22 @@ export function MyToDoView({
                                 </option>
                               ))}
                             </select>
-                            <select
-                              value={task.delegatedTo ?? ""}
-                              onChange={(e) => editDelegatedTo(task, e.target.value || null)}
-                              title="Delegate this task to someone else while still following it yourself"
-                              className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs text-slate-500"
-                            >
-                              <option value="">Delegate to…</option>
-                              {interlocutors.map((i) => (
-                                <option key={i.id} value={i.id}>
-                                  → {i.name}
-                                </option>
-                              ))}
-                            </select>
+                            {calinde && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  editDelegatedTo(task, task.delegatedTo === calinde.id ? null : calinde.id)
+                                }
+                                title="Delegate to Calindé — you'll still see and follow the task"
+                                className={`rounded border px-1.5 py-0.5 text-xs font-medium ${
+                                  task.delegatedTo === calinde.id
+                                    ? "border-slate-300 bg-slate-200 text-slate-600"
+                                    : "border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300"
+                                }`}
+                              >
+                                {task.delegatedTo === calinde.id ? "✓ Delegated to Calindé" : "Delegate to Calindé"}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
