@@ -178,8 +178,14 @@ export function MyToDoView({
 
   const filtered = useMemo(() => {
     return effectiveTasks.filter((t) => {
+      // "All statuses" naturally means "everything still active" — Done
+      // tasks stay out of the way unless you explicitly pick "Done" below.
+      if (statusFilter === "All") {
+        if (t.status === "Done") return false;
+      } else if (t.status !== statusFilter) {
+        return false;
+      }
       if (priorityFilter !== "All" && t.priority !== priorityFilter) return false;
-      if (statusFilter !== "All" && t.status !== statusFilter) return false;
       if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
@@ -204,7 +210,7 @@ export function MyToDoView({
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-indigo-300 focus:outline-none"
           >
-            <option value="All">All statuses</option>
+            <option value="All">All statuses (excl. Done)</option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {s}
