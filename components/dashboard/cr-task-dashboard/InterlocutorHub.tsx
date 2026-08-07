@@ -106,6 +106,8 @@ export function InterlocutorHub({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [copyPanelOpen, setCopyPanelOpen] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const interlocutorOptions: InterlocutorOption[] = interlocutors.map((i) => ({ id: i.id, name: i.name }));
 
@@ -197,6 +199,45 @@ export function InterlocutorHub({
 
   const delegatedIn = delegatedTasks.filter((t) => memberIdSet.has(t.delegateeId));
 
+  // Plain-text bullet list of this person/team's outstanding work — for
+  // pasting into a Slack message or a 1:1 doc before a meeting. Always
+  // built from every active (non-Done) task regardless of the status
+  // filter above, since "what do I need to bring up with them" usually
+  // means everything outstanding, not just whatever's currently filtered.
+  const bulletListText = useMemo(() => {
+    const bullet = (t: { title: string; dueDate: string | null; status: FollowUpTask["status"] }) =>
+      `- ${t.title}${t.dueDate ? ` (due ${t.dueDate})` : ""}${t.status !== "To Do" ? ` [${t.status}]` : ""}`;
+
+    const activeIOweThem = effectiveTasks.filter(
+      (t) => memberIdSet.has(t.interlocutorId) && t.type === "i-owe-them" && t.status !== "Done"
+    );
+    const activeTheyOweMe = effectiveTasks.filter(
+      (t) => memberIdSet.has(t.interlocutorId) && t.type === "they-owe-me" && t.status !== "Done"
+    );
+    const activeWeFollow = effectiveTasks.filter(
+      (t) => memberIdSet.has(t.interlocutorId) && t.type === "we-follow-together" && t.status !== "Done"
+    );
+    const activeDelegated = delegatedIn.filter((t) => t.status !== "Done");
+
+    const sections: string[] = [];
+    if (activeIOweThem.length > 0) sections.push(`What I owe them:\n${activeIOweThem.map(bullet).join("\n")}`);
+    if (activeTheyOweMe.length > 0) sections.push(`What they owe me:\n${activeTheyOweMe.map(bullet).join("\n")}`);
+    if (activeWeFollow.length > 0) sections.push(`What we follow together:\n${activeWeFollow.map(bullet).join("\n")}`);
+    if (activeDelegated.length > 0) sections.push(`Delegated to them:\n${activeDelegated.map(bullet).join("\n")}`);
+
+    return sections.length > 0 ? sections.join("\n\n") : "Nothing outstanding right now.";
+  }, [effectiveTasks, delegatedIn, memberIdSet]);
+
+  const copyBulletList = async () => {
+    try {
+      await navigator.clipboard.writeText(bulletListText);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+    setTimeout(() => setCopyState("idle"), 2000);
+  };
+
   const openFollowUp = effectiveTasks.find((t) => t.id === openTaskId);
   const openDelegated = delegatedTasks.find((t) => t.id === openTaskId);
   const editableTask: EditableTask | null = openFollowUp
@@ -276,18 +317,52 @@ export function InterlocutorHub({
                   {isTeam ? `Shared page — ${selectedEntry.subtitle}` : selectedEntry.subtitle}
                 </p>
               </div>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-indigo-300 focus:outline-none"
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {s === "All" ? "All statuses" : s}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-indigo-300 focus:outline-none"
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s === "All" ? "All statuses" : s}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    setCopyPanelOpen((v) => !v);
+                    setCopyState("idle");
+                  }}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-indigo-300"
+                >
+                  📋 Copy task list
+                </button>
+              </div>
             </header>
+
+            {copyPanelOpen && (
+              <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Bullet-point summary — select all &amp; copy, or use the button
+                  </p>
+                  <button
+                    onClick={copyBulletList}
+                    className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+                  >
+                    {copyState === "copied" ? "Copied ✓" : copyState === "failed" ? "Copy failed — select manually" : "Copy"}
+                  </button>
+                </div>
+                <textarea
+                  readOnly
+                  value={bulletListText}
+                  onFocus={(e) => e.currentTarget.select()}
+                  rows={Math.min(14, Math.max(4, bulletListText.split("\n").length))}
+                  className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-sm text-slate-700 focus:outline-none"
+                />
+              </div>
+            )}
 
             {errorMsg && (
               <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
