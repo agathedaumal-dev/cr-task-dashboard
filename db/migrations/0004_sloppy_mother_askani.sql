@@ -1,0 +1,1 @@
+ALTER TABLE "cr_tasks" ADD COLUMN "notes" text;

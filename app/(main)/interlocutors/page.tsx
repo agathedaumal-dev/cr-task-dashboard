@@ -47,6 +47,7 @@ export default async function InterlocutorsPage() {
         dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
         status: t.status,
         delegatedTo: t.delegatedTo,
+        notes: t.notes,
         crSourceTitle: t.crSourceTitle,
         crDate: t.crDate.toISOString().slice(0, 10),
       }));
@@ -64,6 +65,7 @@ export default async function InterlocutorsPage() {
         priority: t.priority,
         dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
         status: t.status,
+        notes: t.notes,
         crSourceTitle: t.crSourceTitle,
         crDate: t.crDate.toISOString().slice(0, 10),
       }));

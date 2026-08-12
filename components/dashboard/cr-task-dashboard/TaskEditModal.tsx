@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Shared full-edit shape used by every dashboard view. Any view that wants
 // click-to-open-modal editing maps its own row type into this before passing
@@ -15,6 +15,7 @@ export interface EditableTask {
   status: "To Do" | "In Progress" | "Blocked" | "Done";
   dueDate: string | null;
   delegatedTo: string | null; // interlocutors.id or null
+  notes: string | null; // free-form progress notes, written by hand
   crSourceTitle: string;
   crDate: string;
 }
@@ -74,6 +75,9 @@ export function TaskEditModal({
   const [draft, setDraft] = useState(task);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notesText, setNotesText] = useState(task.notes ?? "");
+  const [notesStatus, setNotesStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const notesSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -108,6 +112,23 @@ export function TaskEditModal({
         setSaving(null);
         setError(e.message);
       });
+  };
+
+  // Notes are free-form prose, so save on a debounce rather than per-key —
+  // same pattern as the global scratchpad — instead of firing a PATCH on
+  // every keystroke.
+  const onNotesChange = (value: string) => {
+    setNotesText(value);
+    setNotesStatus("saving");
+    if (notesSaveTimer.current) clearTimeout(notesSaveTimer.current);
+    notesSaveTimer.current = setTimeout(() => {
+      patchTask(task.id, { notes: value })
+        .then((updated) => {
+          setNotesStatus("saved");
+          onSaved(updated);
+        })
+        .catch(() => setNotesStatus("error"));
+    }, 500);
   };
 
   return (
@@ -247,6 +268,20 @@ export function TaskEditModal({
                 Still shows on your page (greyed out), and now also appears on Calindé&apos;s Interlocutor Hub page.
               </p>
             )}
+          </Field>
+
+          <Field label="Progress notes" full>
+            <textarea
+              value={notesText}
+              onChange={(e) => onNotesChange(e.target.value)}
+              placeholder="Where are you on this, what have you already done…"
+              className="h-24 w-full resize-none rounded-lg border border-slate-200 p-2 text-sm text-slate-700 focus:border-indigo-300 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              {notesStatus === "saving" && "Saving…"}
+              {notesStatus === "saved" && "Saved"}
+              {notesStatus === "error" && <span className="text-rose-500">Failed to save</span>}
+            </p>
           </Field>
         </div>
 

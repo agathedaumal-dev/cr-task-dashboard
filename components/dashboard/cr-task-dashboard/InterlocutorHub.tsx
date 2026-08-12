@@ -29,6 +29,7 @@ export interface FollowUpTask {
   dueDate: string | null;
   status: "To Do" | "In Progress" | "Blocked" | "Done";
   delegatedTo: string | null;
+  notes: string | null;
   crSourceTitle: string;
   crDate: string;
 }
@@ -47,6 +48,7 @@ export interface DelegatedInTask {
   priority: "High" | "Medium" | "Low";
   dueDate: string | null;
   status: "To Do" | "In Progress" | "Blocked" | "Done";
+  notes: string | null;
   crSourceTitle: string;
   crDate: string;
 }
@@ -251,6 +253,7 @@ export function InterlocutorHub({
         status: openFollowUp.status,
         dueDate: openFollowUp.dueDate,
         delegatedTo: openFollowUp.delegatedTo,
+        notes: openFollowUp.notes,
         crSourceTitle: openFollowUp.crSourceTitle,
         crDate: openFollowUp.crDate,
       }
@@ -265,6 +268,7 @@ export function InterlocutorHub({
           status: openDelegated.status,
           dueDate: openDelegated.dueDate,
           delegatedTo: openDelegated.delegateeId,
+          notes: openDelegated.notes,
           crSourceTitle: openDelegated.crSourceTitle,
           crDate: openDelegated.crDate,
         }
@@ -438,7 +442,8 @@ export function InterlocutorHub({
                         </div>
                         <p className="mt-1 text-xs text-slate-400">
                           Still followed by {task.ownerLabel} · Due {task.dueDate ?? "TBD"} · from{" "}
-                          <span className="italic">{task.crSourceTitle}</span> ({task.crDate})
+                          <span className="italic">{task.crSourceTitle}</span> ({task.crDate}){" "}
+                          {task.notes && <span title="Has notes">📝</span>}
                         </p>
                       </div>
                     ))}
@@ -554,7 +559,7 @@ function FollowUpColumn({
                 {!compact && (
                   <p className="text-xs text-slate-400">
                     Due {task.dueDate ?? "TBD"} · from <span className="italic">{task.crSourceTitle}</span> (
-                    {task.crDate})
+                    {task.crDate}) {task.notes && <span title="Has notes">📝</span>}
                   </p>
                 )}
               </div>

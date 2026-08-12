@@ -43,6 +43,7 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
       dueDate: r.dueDate ? r.dueDate.toISOString().slice(0, 10) : null,
       priority: r.priority,
       delegatedTo: r.delegatedTo,
+      notes: r.notes,
       crSourceTitle: r.crSourceTitle,
       crDate: r.crDate.toISOString().slice(0, 10),
     });

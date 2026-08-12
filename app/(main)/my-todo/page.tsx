@@ -26,6 +26,7 @@ export default async function MyToDoPage() {
         type: r.type,
         assignee: r.assignee,
         delegatedTo: r.delegatedTo,
+        notes: r.notes,
         crSourceTitle: r.crSourceTitle,
         crDate: r.crDate.toISOString().slice(0, 10),
       }));

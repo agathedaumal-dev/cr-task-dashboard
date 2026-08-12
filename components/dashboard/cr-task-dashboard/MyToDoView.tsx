@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { groupTasksByBucket, type DueBucket } from "@/lib/due-date-buckets";
 
@@ -14,6 +14,7 @@ export interface TaskCardData {
   type: "my-todo" | "i-owe-them" | "they-owe-me" | "we-follow-together";
   assignee: string; // "Me" or an interlocutors.id
   delegatedTo: string | null; // interlocutors.id or null
+  notes: string | null; // free-form progress notes, written by hand
   crSourceTitle: string;
   crDate: string;
 }
@@ -109,6 +110,13 @@ export function MyToDoView({
   );
   const [copyPanelOpen, setCopyPanelOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  // Per-task notes: which card has its notes box open, the in-progress draft
+  // text per task, and a save-status label per task — same debounced-save
+  // pattern as the global scratchpad, just keyed by task id.
+  const [notesOpenId, setNotesOpenId] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+  const [notesStatus, setNotesStatus] = useState<Record<string, "idle" | "saving" | "saved" | "error">>({});
+  const notesTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const effectiveTasks = useMemo(
     () => tasks.map((t) => ({ ...t, ...overrides[t.id] })),
@@ -163,6 +171,27 @@ export function MyToDoView({
     // Delegation is separate from assignee — the task stays here (still "Me"),
     // it just also shows up, greyed, on the delegate's Interlocutor Hub page.
     applyUpdate(task.id, { delegatedTo: newDelegate }, { delegatedTo: newDelegate });
+  };
+
+  const toggleNotes = (task: TaskCardData) => {
+    if (notesOpenId === task.id) {
+      setNotesOpenId(null);
+      return;
+    }
+    setNotesDraft((prev) => ({ ...prev, [task.id]: prev[task.id] ?? task.notes ?? "" }));
+    setNotesOpenId(task.id);
+  };
+
+  const onNotesChange = (task: TaskCardData, value: string) => {
+    setNotesDraft((prev) => ({ ...prev, [task.id]: value }));
+    setNotesStatus((prev) => ({ ...prev, [task.id]: "saving" }));
+    if (notesTimers.current[task.id]) clearTimeout(notesTimers.current[task.id]);
+    notesTimers.current[task.id] = setTimeout(() => {
+      setOverrides((prev) => ({ ...prev, [task.id]: { ...prev[task.id], notes: value } }));
+      patchTask(task.id, { notes: value })
+        .then(() => setNotesStatus((prev) => ({ ...prev, [task.id]: "saved" })))
+        .catch(() => setNotesStatus((prev) => ({ ...prev, [task.id]: "error" })));
+    }, 500);
   };
 
   const startEditingTitle = (task: TaskCardData) => {
@@ -439,7 +468,38 @@ export function MyToDoView({
                           <option value="Medium">Medium</option>
                           <option value="Low">Low</option>
                         </select>
+                        <button
+                          type="button"
+                          onClick={() => toggleNotes(task)}
+                          title={task.notes ? "Edit your notes on this task" : "Add notes on this task"}
+                          className={`relative rounded-md border px-2 py-1 text-xs font-medium ${
+                            notesOpenId === task.id
+                              ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300"
+                          }`}
+                        >
+                          📝
+                          {task.notes && notesOpenId !== task.id && (
+                            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />
+                          )}
+                        </button>
                       </div>
+                      {notesOpenId === task.id && (
+                        <div className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <textarea
+                            autoFocus
+                            value={notesDraft[task.id] ?? ""}
+                            onChange={(e) => onNotesChange(task, e.target.value)}
+                            placeholder="Where are you on this, what have you already done…"
+                            className="h-20 w-full resize-none rounded-md border border-slate-200 bg-white p-2 text-sm text-slate-700 focus:border-indigo-300 focus:outline-none"
+                          />
+                          <p className="mt-1 text-xs text-slate-400">
+                            {notesStatus[task.id] === "saving" && "Saving…"}
+                            {notesStatus[task.id] === "saved" && "Saved"}
+                            {notesStatus[task.id] === "error" && <span className="text-rose-500">Failed to save</span>}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

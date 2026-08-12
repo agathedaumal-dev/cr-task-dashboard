@@ -105,6 +105,10 @@ export const tasks = pgTable("cr_tasks", {
   // their name tagged, so the original owner (e.g. Agathe, as manager) keeps
   // following it while the delegate also sees it as their own.
   delegatedTo: uuid("delegated_to").references(() => interlocutors.id),
+  // Free-form progress notes the user writes themselves ("where am I on this,
+  // what did I already do") — separate from the global scratchpad, tied to
+  // this specific task. Nullable; empty/untouched tasks have no row change.
+  notes: text("notes"),
   crId: uuid("cr_id").references(() => meetingCrs.id),
   crSourceTitle: text("cr_source_title").notNull(),
   crDate: timestamp("cr_date").notNull(),

@@ -16,6 +16,7 @@ export interface ProductTask {
   dueDate: string | null;
   priority: "High" | "Medium" | "Low";
   delegatedTo: string | null;
+  notes: string | null;
   crSourceTitle: string;
   crDate: string;
 }
@@ -90,6 +91,7 @@ export function ProductHub({
         status: openTask.status,
         dueDate: openTask.dueDate,
         delegatedTo: openTask.delegatedTo,
+        notes: openTask.notes,
         crSourceTitle: openTask.crSourceTitle,
         crDate: openTask.crDate,
       }
@@ -176,11 +178,18 @@ function TaskColumn({
                 {showAssignee ? `${task.assigneeName} · ` : ""}Due {task.dueDate ?? "TBD"} · {task.priority} · from{" "}
                 <span className="italic">{task.crSourceTitle}</span> ({task.crDate})
               </p>
-              {isDelegated && (
-                <span className="mt-1 inline-block rounded-full border border-slate-300 bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-                  delegated
-                </span>
-              )}
+              <div className="mt-1 flex items-center gap-1.5">
+                {isDelegated && (
+                  <span className="inline-block rounded-full border border-slate-300 bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                    delegated
+                  </span>
+                )}
+                {task.notes && (
+                  <span title="Has notes" className="text-xs">
+                    📝
+                  </span>
+                )}
+              </div>
             </div>
           );
         })}

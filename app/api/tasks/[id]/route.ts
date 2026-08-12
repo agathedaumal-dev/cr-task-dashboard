@@ -69,6 +69,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (body.delegatedTo !== undefined) {
     updates.delegatedTo = body.delegatedTo ? String(body.delegatedTo) : null;
   }
+  // Free-form progress notes the user writes themselves. Empty string clears
+  // them; never validated beyond being a string, since it's plain prose.
+  if (body.notes !== undefined) {
+    updates.notes = body.notes === null ? null : String(body.notes);
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "no valid fields to update" }, { status: 400 });
