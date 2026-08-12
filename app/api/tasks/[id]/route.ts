@@ -2,6 +2,10 @@
 // checkbox (status), due-date picker, and priority selector across My To-Do,
 // Interlocutor Hub, and Product Hub views. Everything the CR parser fills in
 // automatically can be corrected here.
+// DELETE /api/tasks/[id] — removes a task outright, permanently. Used by the
+// 🗑 button (My To-Do rows, and the TaskEditModal used from Product Hub /
+// Interlocutor Hub). No soft-delete/undo — the UI confirms before calling
+// this, since it can't be recovered afterwards.
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -85,4 +89,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "task not found" }, { status: 404 });
   }
   return NextResponse.json({ task: row });
+}
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!db) {
+    return NextResponse.json({ error: "No database configured" }, { status: 500 });
+  }
+  const { id } = await params;
+  const [row] = await db.delete(tasks).where(eq(tasks.id, id)).returning();
+  if (!row) {
+    return NextResponse.json({ error: "task not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
 }

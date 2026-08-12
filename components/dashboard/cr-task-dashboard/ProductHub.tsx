@@ -67,10 +67,14 @@ export function ProductHub({
   const [statusFilter, setStatusFilter] = useState<ProductTask["status"] | "All" | "AllButDone">("All");
   const [overrides, setOverrides] = useState<Record<string, Partial<ProductTask>>>({});
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
   const allTasks = useMemo(
-    () => [...myTasks, ...interlocutorTasks].map((t) => ({ ...t, ...overrides[t.id] })),
-    [myTasks, interlocutorTasks, overrides]
+    () =>
+      [...myTasks, ...interlocutorTasks]
+        .filter((t) => !deletedIds.has(t.id))
+        .map((t) => ({ ...t, ...overrides[t.id] })),
+    [myTasks, interlocutorTasks, overrides, deletedIds]
   );
 
   const applyFilter = (list: ProductTask[]) => {
@@ -106,6 +110,12 @@ export function ProductHub({
     startTransition(() => router.refresh());
   };
 
+  const onDeleted = () => {
+    if (!openTaskId) return;
+    setDeletedIds((prev) => new Set(prev).add(openTaskId));
+    startTransition(() => router.refresh());
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -136,6 +146,7 @@ export function ProductHub({
           interlocutors={interlocutors}
           onClose={() => setOpenTaskId(null)}
           onSaved={onSaved}
+          onDeleted={onDeleted}
         />
       )}
     </div>

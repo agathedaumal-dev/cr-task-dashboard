@@ -56,6 +56,14 @@ async function patchTask(id: string, body: Record<string, unknown>) {
   return task;
 }
 
+async function deleteTask(id: string) {
+  const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: "unknown error" }));
+    throw new Error(error ?? "Failed to delete task");
+  }
+}
+
 // Click-to-open modal used from Product Hub and Interlocutor Hub so those
 // pages get the exact same edit features as My To-Do, without ever
 // navigating away — closing (Escape, backdrop click, or the × button) just
@@ -66,15 +74,18 @@ export function TaskEditModal({
   interlocutors,
   onClose,
   onSaved,
+  onDeleted,
 }: {
   task: EditableTask;
   interlocutors: InterlocutorOption[];
   onClose: () => void;
   onSaved: (updated: Partial<EditableTask>) => void;
+  onDeleted: () => void;
 }) {
   const [draft, setDraft] = useState(task);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [notesText, setNotesText] = useState(task.notes ?? "");
   const [notesStatus, setNotesStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const notesSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,6 +140,21 @@ export function TaskEditModal({
         })
         .catch(() => setNotesStatus("error"));
     }, 500);
+  };
+
+  const handleDelete = () => {
+    if (!window.confirm(`Delete "${draft.title}"? This can't be undone.`)) return;
+    setDeleting(true);
+    setError(null);
+    deleteTask(task.id)
+      .then(() => {
+        onDeleted();
+        onClose();
+      })
+      .catch((e) => {
+        setDeleting(false);
+        setError(e.message);
+      });
   };
 
   return (
@@ -285,7 +311,17 @@ export function TaskEditModal({
           </Field>
         </div>
 
-        {saving && <p className="mt-3 text-xs text-slate-400">Saving {saving}…</p>}
+        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="rounded-lg px-2 py-1 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+          >
+            {deleting ? "Deleting…" : "🗑 Delete task"}
+          </button>
+          {saving && <p className="text-xs text-slate-400">Saving {saving}…</p>}
+        </div>
       </div>
     </div>
   );

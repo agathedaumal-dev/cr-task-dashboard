@@ -77,6 +77,14 @@ async function patchTask(id: string, body: Record<string, unknown>) {
   }
 }
 
+async function deleteTaskRequest(id: string) {
+  const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: "unknown error" }));
+    throw new Error(error ?? "Failed to delete task");
+  }
+}
+
 export function MyToDoView({
   tasks,
   interlocutors = [],
@@ -120,9 +128,11 @@ export function MyToDoView({
   const [notesStatus, setNotesStatus] = useState<Record<string, "idle" | "saving" | "saved" | "error">>({});
   const notesTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
   const effectiveTasks = useMemo(
-    () => tasks.map((t) => ({ ...t, ...overrides[t.id] })),
-    [tasks, overrides]
+    () => tasks.filter((t) => !deletedIds.has(t.id)).map((t) => ({ ...t, ...overrides[t.id] })),
+    [tasks, overrides, deletedIds]
   );
 
   const applyUpdate = (id: string, patch: Partial<TaskCardData>, body: Record<string, unknown>) => {
@@ -131,6 +141,23 @@ export function MyToDoView({
     patchTask(id, body)
       .then(() => startTransition(() => router.refresh()))
       .catch((e) => setErrorMsg(e.message));
+  };
+
+  const deleteTask = (task: TaskCardData) => {
+    if (!window.confirm(`Delete "${task.title}"? This can't be undone.`)) return;
+    setDeletedIds((prev) => new Set(prev).add(task.id));
+    setErrorMsg(null);
+    deleteTaskRequest(task.id)
+      .then(() => startTransition(() => router.refresh()))
+      .catch((e) => {
+        setErrorMsg(e.message);
+        // Roll back if the request actually failed.
+        setDeletedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(task.id);
+          return next;
+        });
+      });
   };
 
   // Tick-to-mark-started/done: a single checkbox that cycles To Do -> In
@@ -495,6 +522,14 @@ export function MyToDoView({
                           {task.notes && notesOpenId !== task.id && (
                             <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />
                           )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteTask(task)}
+                          title="Delete this task"
+                          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-rose-500 hover:border-rose-300 hover:bg-rose-50"
+                        >
+                          🗑
                         </button>
                       </div>
                       {notesOpenId === task.id && (

@@ -113,6 +113,7 @@ export function InterlocutorHub({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [copyPanelOpen, setCopyPanelOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
@@ -156,8 +157,13 @@ export function InterlocutorHub({
   const effectiveSelectedKey = selectedKey ?? sidebarEntries[0]?.key ?? null;
 
   const effectiveTasks = useMemo(
-    () => tasks.map((t) => ({ ...t, ...overrides[t.id] })),
-    [tasks, overrides]
+    () => tasks.filter((t) => !deletedIds.has(t.id)).map((t) => ({ ...t, ...overrides[t.id] })),
+    [tasks, overrides, deletedIds]
+  );
+
+  const effectiveDelegatedTasks = useMemo(
+    () => delegatedTasks.filter((t) => !deletedIds.has(t.id)),
+    [delegatedTasks, deletedIds]
   );
 
   const moveTask = (taskId: string, newType: FollowUpType) => {
@@ -225,7 +231,7 @@ export function InterlocutorHub({
   // columns above, so the dropdown consistently controls the whole page.
   // Filtered by delegateeId rather than interlocutorId — it's whichever
   // team member the task was actually delegated to.
-  const delegatedIn = applyStatusFilter(delegatedTasks.filter((t) => visibleMemberIdSet.has(t.delegateeId)));
+  const delegatedIn = applyStatusFilter(effectiveDelegatedTasks.filter((t) => visibleMemberIdSet.has(t.delegateeId)));
 
   // Plain-text bullet list of this person/team's outstanding work — for
   // pasting into a Slack message or a 1:1 doc before a meeting. Mirrors
@@ -256,7 +262,7 @@ export function InterlocutorHub({
   };
 
   const openFollowUp = effectiveTasks.find((t) => t.id === openTaskId);
-  const openDelegated = delegatedTasks.find((t) => t.id === openTaskId);
+  const openDelegated = effectiveDelegatedTasks.find((t) => t.id === openTaskId);
   const editableTask: EditableTask | null = openFollowUp
     ? {
         id: openFollowUp.id,
@@ -292,6 +298,12 @@ export function InterlocutorHub({
   const onSaved = (updated: Partial<EditableTask>) => {
     if (!openTaskId) return;
     setOverrides((prev) => ({ ...prev, [openTaskId]: { ...prev[openTaskId], ...updated } as Partial<FollowUpTask> }));
+    startTransition(() => router.refresh());
+  };
+
+  const onDeleted = () => {
+    if (!openTaskId) return;
+    setDeletedIds((prev) => new Set(prev).add(openTaskId));
     startTransition(() => router.refresh());
   };
 
@@ -496,6 +508,7 @@ export function InterlocutorHub({
           interlocutors={interlocutorOptions}
           onClose={() => setOpenTaskId(null)}
           onSaved={onSaved}
+          onDeleted={onDeleted}
         />
       )}
 
