@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AddInterlocutorForm } from "./AddInterlocutorForm";
 import { TaskEditModal, type EditableTask, type InterlocutorOption } from "./TaskEditModal";
+import { AddTaskModal } from "./AddTaskModal";
 
 export interface InterlocutorData {
   id: string;
@@ -108,6 +109,7 @@ export function InterlocutorHub({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [copyPanelOpen, setCopyPanelOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
@@ -328,6 +330,12 @@ export function InterlocutorHub({
                   ))}
                 </select>
                 <button
+                  onClick={() => setAddTaskOpen(true)}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+                >
+                  + Add task
+                </button>
+                <button
                   onClick={() => {
                     setCopyPanelOpen((v) => !v);
                     setCopyState("idle");
@@ -455,6 +463,19 @@ export function InterlocutorHub({
           interlocutors={interlocutorOptions}
           onClose={() => setOpenTaskId(null)}
           onSaved={onSaved}
+        />
+      )}
+
+      {addTaskOpen && (
+        <AddTaskModal
+          interlocutors={interlocutorOptions}
+          // Solo page → default to that person (most tasks here are
+          // "they owe me"); team page → default to "Me", pick the right
+          // member from the Assignee dropdown instead of guessing.
+          defaultAssignee={!isTeam && selectedEntry ? selectedEntry.memberIds[0] : "Me"}
+          defaultType="they-owe-me"
+          onClose={() => setAddTaskOpen(false)}
+          onCreated={() => startTransition(() => router.refresh())}
         />
       )}
     </div>

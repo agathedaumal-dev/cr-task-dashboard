@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { groupTasksByBucket, type DueBucket } from "@/lib/due-date-buckets";
+import { AddTaskModal } from "./AddTaskModal";
 
 export interface TaskCardData {
   id: string;
@@ -108,6 +109,7 @@ export function MyToDoView({
     () => interlocutors.find((i) => i.name.toLowerCase().startsWith("calind")),
     [interlocutors]
   );
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [copyPanelOpen, setCopyPanelOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   // Per-task notes: which card has its notes box open, the in-progress draft
@@ -286,6 +288,12 @@ export function MyToDoView({
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
           </select>
+          <button
+            onClick={() => setAddTaskOpen(true)}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+          >
+            + Add task
+          </button>
           <button
             onClick={() => {
               setCopyPanelOpen((v) => !v);
@@ -513,9 +521,19 @@ export function MyToDoView({
           );
         })}
         {filtered.length === 0 && (
-          <p className="text-sm text-slate-400">Nothing here yet — paste a CR to get started.</p>
+          <p className="text-sm text-slate-400">Nothing here yet — add a task or process a CR to get started.</p>
         )}
       </div>
+
+      {addTaskOpen && (
+        <AddTaskModal
+          interlocutors={interlocutors}
+          defaultAssignee="Me"
+          defaultType="my-todo"
+          onClose={() => setAddTaskOpen(false)}
+          onCreated={() => startTransition(() => router.refresh())}
+        />
+      )}
     </div>
   );
 }
