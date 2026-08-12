@@ -16,6 +16,7 @@ export interface EditableTask {
   dueDate: string | null;
   delegatedTo: string | null; // interlocutors.id or null
   notes: string | null; // free-form progress notes, written by hand
+  additionalInterlocutorIds: string[]; // extra people tagged, beyond assignee
   crSourceTitle: string;
   crDate: string;
 }
@@ -89,6 +90,8 @@ export function TaskEditModal({
   const [notesText, setNotesText] = useState(task.notes ?? "");
   const [notesStatus, setNotesStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const notesSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [taggedIds, setTaggedIds] = useState<string[]>(task.additionalInterlocutorIds ?? []);
+  const [tagStatus, setTagStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -140,6 +143,21 @@ export function TaskEditModal({
         })
         .catch(() => setNotesStatus("error"));
     }, 500);
+  };
+
+  // "Also involves" — extra people beyond the primary Assignee, so this task
+  // also shows up (read-only, under "Also involves you") on each of their
+  // Interlocutor Hub pages. Doesn't touch assignee/interlocutorId/type at all.
+  const toggleTagged = (id: string) => {
+    const next = taggedIds.includes(id) ? taggedIds.filter((v) => v !== id) : [...taggedIds, id];
+    setTaggedIds(next);
+    setTagStatus("saving");
+    patchTask(task.id, { interlocutorIds: next })
+      .then((updated) => {
+        setTagStatus("saved");
+        onSaved(updated);
+      })
+      .catch(() => setTagStatus("error"));
   };
 
   const handleDelete = () => {
@@ -307,6 +325,35 @@ export function TaskEditModal({
               {notesStatus === "saving" && "Saving…"}
               {notesStatus === "saved" && "Saved"}
               {notesStatus === "error" && <span className="text-rose-500">Failed to save</span>}
+            </p>
+          </Field>
+
+          <Field label="Also involves" full>
+            <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-slate-200 p-2">
+              {interlocutors.length === 0 && <p className="text-xs text-slate-400">No interlocutors yet.</p>}
+              {interlocutors.map((i) => {
+                const checked = taggedIds.includes(i.id);
+                return (
+                  <button
+                    key={i.id}
+                    type="button"
+                    onClick={() => toggleTagged(i.id)}
+                    className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+                      checked
+                        ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300"
+                    }`}
+                  >
+                    {checked ? "✓ " : ""}
+                    {i.name}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+              {tagStatus === "saving" && "Saving…"}
+              {tagStatus === "saved" && "Saved — also shows on their pages now"}
+              {tagStatus === "error" && <span className="text-rose-500">Failed to save</span>}
             </p>
           </Field>
         </div>

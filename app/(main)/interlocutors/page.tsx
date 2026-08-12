@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import { db } from "@/lib/db";
-import { interlocutors, tasks } from "@/db/schema";
-import { isNotNull, or } from "drizzle-orm";
+import { interlocutors, tasks, taskInterlocutors } from "@/db/schema";
+import { isNotNull, or, inArray } from "drizzle-orm";
 import {
   InterlocutorHub,
   type InterlocutorData,
   type FollowUpTask,
   type DelegatedInTask,
+  type TaggedInTask,
 } from "@/components/dashboard/cr-task-dashboard/InterlocutorHub";
 import { MOCK_INTERLOCUTORS, MOCK_FOLLOWUP_TASKS } from "@/lib/mock-cr-data";
 
@@ -15,6 +16,7 @@ export default async function InterlocutorsPage() {
   let people: InterlocutorData[] = MOCK_INTERLOCUTORS;
   let followUps: FollowUpTask[] = MOCK_FOLLOWUP_TASKS;
   let delegatedIn: DelegatedInTask[] = [];
+  let taggedIn: TaggedInTask[] = [];
 
   if (db) {
     const peopleRows = await db.select().from(interlocutors);
@@ -29,6 +31,15 @@ export default async function InterlocutorsPage() {
       .select()
       .from(tasks)
       .where(or(isNotNull(tasks.interlocutorId), isNotNull(tasks.delegatedTo)));
+
+    // "Also involves" tags, grouped once by task id — used below for both
+    // followUps/delegatedIn (so their TaskEditModal shows the right checked
+    // boxes) and for the standalone "Also involves you" section further down.
+    const tagRows = await db.select().from(taskInterlocutors);
+    const tagsByTask: Record<string, string[]> = {};
+    for (const r of tagRows) {
+      (tagsByTask[r.taskId] ??= []).push(r.interlocutorId);
+    }
 
     followUps = taskRows
       .filter(
@@ -48,6 +59,7 @@ export default async function InterlocutorsPage() {
         status: t.status,
         delegatedTo: t.delegatedTo,
         notes: t.notes,
+        additionalInterlocutorIds: tagsByTask[t.id] ?? [],
         crSourceTitle: t.crSourceTitle,
         crDate: t.crDate.toISOString().slice(0, 10),
       }));
@@ -66,10 +78,49 @@ export default async function InterlocutorsPage() {
         dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
         status: t.status,
         notes: t.notes,
+        additionalInterlocutorIds: tagsByTask[t.id] ?? [],
         crSourceTitle: t.crSourceTitle,
         crDate: t.crDate.toISOString().slice(0, 10),
       }));
+
+    // "Also involves you" — tasks tagged with extra people beyond their
+    // primary owner. Can be ANY task (including plain "my-todo" ones), so
+    // fetch those rows separately rather than assuming they're in taskRows.
+    const taggedTaskIds = [...new Set(tagRows.map((r) => r.taskId))];
+    const taggedTaskRows =
+      taggedTaskIds.length > 0 ? await db.select().from(tasks).where(inArray(tasks.id, taggedTaskIds)) : [];
+    const taskById: Record<string, (typeof taggedTaskRows)[number]> = {};
+    for (const t of taggedTaskRows) taskById[t.id] = t;
+
+    taggedIn = tagRows
+      .map((r) => {
+        const t = taskById[r.taskId];
+        if (!t) return null;
+        return {
+          id: t.id,
+          taggedInterlocutorId: r.interlocutorId,
+          ownerLabel: t.assignee === "Me" ? "Agathe" : nameById[t.assignee] ?? t.assignee,
+          title: t.title,
+          productId: t.productId,
+          type: t.type,
+          assignee: t.assignee,
+          priority: t.priority,
+          dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+          status: t.status,
+          notes: t.notes,
+          crSourceTitle: t.crSourceTitle,
+          crDate: t.crDate.toISOString().slice(0, 10),
+        };
+      })
+      .filter((t): t is TaggedInTask => t !== null);
   }
 
-  return <InterlocutorHub interlocutors={people} tasks={followUps} delegatedTasks={delegatedIn} />;
+  return (
+    <InterlocutorHub
+      interlocutors={people}
+      tasks={followUps}
+      delegatedTasks={delegatedIn}
+      taggedTasks={taggedIn}
+    />
+  );
 }

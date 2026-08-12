@@ -43,6 +43,7 @@ export function AddTaskModal({
   const [productId, setProductId] = useState<EditableTask["productId"]>(defaultProductId);
   const [priority, setPriority] = useState<EditableTask["priority"]>("Medium");
   const [dueDate, setDueDate] = useState<string>("");
+  const [taggedIds, setTaggedIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +74,7 @@ export function AddTaskModal({
           productId,
           priority,
           dueDate: dueDate || null,
+          interlocutorIds: taggedIds,
         }),
       });
       if (!res.ok) {
@@ -188,6 +190,32 @@ export function AddTaskModal({
               onChange={(e) => setDueDate(e.target.value)}
               className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
             />
+          </Field>
+
+          <Field label="Also involves (optional)" full>
+            <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-slate-200 p-2">
+              {interlocutors.length === 0 && <p className="text-xs text-slate-400">No interlocutors yet.</p>}
+              {interlocutors.map((i) => {
+                const checked = taggedIds.includes(i.id);
+                return (
+                  <button
+                    key={i.id}
+                    type="button"
+                    onClick={() =>
+                      setTaggedIds((prev) => (checked ? prev.filter((v) => v !== i.id) : [...prev, i.id]))
+                    }
+                    className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+                      checked
+                        ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300"
+                    }`}
+                  >
+                    {checked ? "✓ " : ""}
+                    {i.name}
+                  </button>
+                );
+              })}
+            </div>
           </Field>
         </div>
 

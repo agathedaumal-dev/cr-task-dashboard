@@ -9,7 +9,7 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { tasks } from "@/db/schema";
+import { tasks, taskInterlocutors } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 const ALLOWED_STATUS = ["To Do", "In Progress", "Blocked", "Done"] as const;
@@ -79,16 +79,44 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     updates.notes = body.notes === null ? null : String(body.notes);
   }
 
-  if (Object.keys(updates).length === 0) {
+  // Extra interlocutors tagged on this task (beyond the primary
+  // assignee/interlocutorId). `undefined` means "leave untouched"; an array
+  // (even empty, to clear all tags) means "replace with exactly this set".
+  const hasInterlocutorIdsUpdate = Array.isArray(body.interlocutorIds);
+  const nextInterlocutorIds: string[] = hasInterlocutorIdsUpdate
+    ? Array.from(new Set(body.interlocutorIds.map((v: unknown) => String(v))))
+    : [];
+
+  if (Object.keys(updates).length === 0 && !hasInterlocutorIdsUpdate) {
     return NextResponse.json({ error: "no valid fields to update" }, { status: 400 });
   }
-  updates.updatedAt = new Date();
 
-  const [row] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
-  if (!row) {
-    return NextResponse.json({ error: "task not found" }, { status: 404 });
+  let row;
+  if (Object.keys(updates).length > 0) {
+    updates.updatedAt = new Date();
+    [row] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
+    if (!row) {
+      return NextResponse.json({ error: "task not found" }, { status: 404 });
+    }
+  } else {
+    [row] = await db.select().from(tasks).where(eq(tasks.id, id));
+    if (!row) {
+      return NextResponse.json({ error: "task not found" }, { status: 404 });
+    }
   }
-  return NextResponse.json({ task: row });
+
+  if (hasInterlocutorIdsUpdate) {
+    await db.delete(taskInterlocutors).where(eq(taskInterlocutors.taskId, id));
+    if (nextInterlocutorIds.length > 0) {
+      await db.insert(taskInterlocutors).values(
+        nextInterlocutorIds.map((interlocutorId) => ({ taskId: id, interlocutorId }))
+      );
+    }
+  }
+
+  return NextResponse.json({
+    task: hasInterlocutorIdsUpdate ? { ...row, interlocutorIds: nextInterlocutorIds } : row,
+  });
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {

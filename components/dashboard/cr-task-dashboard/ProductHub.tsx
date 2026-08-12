@@ -17,6 +17,7 @@ export interface ProductTask {
   priority: "High" | "Medium" | "Low";
   delegatedTo: string | null;
   notes: string | null;
+  additionalInterlocutorIds: string[];
   crSourceTitle: string;
   crDate: string;
 }
@@ -86,6 +87,12 @@ export function ProductHub({
   const filteredMine = applyFilter(allTasks.filter((t) => t.assignee === "Me"));
   const filteredTheirs = applyFilter(allTasks.filter((t) => t.assignee !== "Me"));
 
+  const nameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const i of interlocutors) map[i.id] = i.name;
+    return map;
+  }, [interlocutors]);
+
   const openTask = allTasks.find((t) => t.id === openTaskId) ?? null;
   const editableTask: EditableTask | null = openTask
     ? {
@@ -99,6 +106,7 @@ export function ProductHub({
         dueDate: openTask.dueDate,
         delegatedTo: openTask.delegatedTo,
         notes: openTask.notes,
+        additionalInterlocutorIds: openTask.additionalInterlocutorIds,
         crSourceTitle: openTask.crSourceTitle,
         crDate: openTask.crDate,
       }
@@ -136,8 +144,8 @@ export function ProductHub({
       </header>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <TaskColumn title="My tasks" tasks={filteredMine} onOpen={setOpenTaskId} />
-        <TaskColumn title="Interlocutors' tasks" tasks={filteredTheirs} showAssignee onOpen={setOpenTaskId} />
+        <TaskColumn title="My tasks" tasks={filteredMine} onOpen={setOpenTaskId} nameById={nameById} />
+        <TaskColumn title="Interlocutors' tasks" tasks={filteredTheirs} showAssignee onOpen={setOpenTaskId} nameById={nameById} />
       </div>
 
       {editableTask && (
@@ -158,11 +166,13 @@ function TaskColumn({
   tasks,
   showAssignee,
   onOpen,
+  nameById,
 }: {
   title: string;
   tasks: ProductTask[];
   showAssignee?: boolean;
   onOpen: (id: string) => void;
+  nameById: Record<string, string>;
 }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -201,6 +211,14 @@ function TaskColumn({
                 {task.notes && (
                   <span title="Has notes" className="text-xs">
                     📝
+                  </span>
+                )}
+                {task.additionalInterlocutorIds.length > 0 && (
+                  <span
+                    title={`Also involves: ${task.additionalInterlocutorIds.map((id) => nameById[id] ?? id).join(", ")}`}
+                    className="inline-block rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600"
+                  >
+                    👥 +{task.additionalInterlocutorIds.length}
                   </span>
                 )}
               </div>

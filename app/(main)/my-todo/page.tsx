@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { db } from "@/lib/db";
-import { tasks, interlocutors } from "@/db/schema";
+import { tasks, interlocutors, taskInterlocutors } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { MyToDoView, type TaskCardData } from "@/components/dashboard/cr-task-dashboard/MyToDoView";
 import { MOCK_MY_TODO_TASKS } from "@/lib/mock-cr-data";
@@ -16,6 +16,15 @@ export default async function MyToDoPage() {
     // error boundary, which hides the message in production builds.
     try {
       const rows = await db.select().from(tasks).where(eq(tasks.assignee, "Me"));
+
+      // "Also involves" tags — group once, keyed by task id, rather than a
+      // separate query per task.
+      const tagRows = await db.select().from(taskInterlocutors);
+      const tagsByTask: Record<string, string[]> = {};
+      for (const t of tagRows) {
+        (tagsByTask[t.taskId] ??= []).push(t.interlocutorId);
+      }
+
       myTasks = rows.map((r) => ({
         id: r.id,
         title: r.title,
@@ -27,6 +36,7 @@ export default async function MyToDoPage() {
         assignee: r.assignee,
         delegatedTo: r.delegatedTo,
         notes: r.notes,
+        additionalInterlocutorIds: tagsByTask[r.id] ?? [],
         crSourceTitle: r.crSourceTitle,
         crDate: r.crDate.toISOString().slice(0, 10),
       }));

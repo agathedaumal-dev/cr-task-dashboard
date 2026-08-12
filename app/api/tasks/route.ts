@@ -6,7 +6,7 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { tasks } from "@/db/schema";
+import { tasks, taskInterlocutors } from "@/db/schema";
 
 const ALLOWED_PRIORITY = ["High", "Medium", "Low"] as const;
 const ALLOWED_TYPE = ["my-todo", "i-owe-them", "they-owe-me", "we-follow-together"] as const;
@@ -52,5 +52,20 @@ export async function POST(req: Request) {
     })
     .returning();
 
-  return NextResponse.json({ task: row });
+  if (!row) {
+    return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
+  }
+
+  // Optional extra interlocutors tagged at creation time (beyond the
+  // primary assignee) — same "also involves you" mechanism as the PATCH route.
+  const interlocutorIds: string[] = Array.isArray(body.interlocutorIds)
+    ? Array.from(new Set(body.interlocutorIds.map((v: unknown) => String(v))))
+    : [];
+  if (interlocutorIds.length > 0) {
+    await db.insert(taskInterlocutors).values(
+      interlocutorIds.map((interlocutorId) => ({ taskId: row.id, interlocutorId }))
+    );
+  }
+
+  return NextResponse.json({ task: { ...row, interlocutorIds } });
 }

@@ -16,6 +16,7 @@ export interface TaskCardData {
   assignee: string; // "Me" or an interlocutors.id
   delegatedTo: string | null; // interlocutors.id or null
   notes: string | null; // free-form progress notes, written by hand
+  additionalInterlocutorIds: string[]; // extra people tagged, beyond assignee
   crSourceTitle: string;
   crDate: string;
 }
@@ -127,6 +128,9 @@ export function MyToDoView({
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
   const [notesStatus, setNotesStatus] = useState<Record<string, "idle" | "saving" | "saved" | "error">>({});
   const notesTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Same toggle-expand pattern as notes, for the "Also involves" multi-select.
+  const [tagsOpenId, setTagsOpenId] = useState<string | null>(null);
+  const [tagStatus, setTagStatus] = useState<Record<string, "idle" | "saving" | "saved" | "error">>({});
 
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
@@ -221,6 +225,25 @@ export function MyToDoView({
         .then(() => setNotesStatus((prev) => ({ ...prev, [task.id]: "saved" })))
         .catch(() => setNotesStatus((prev) => ({ ...prev, [task.id]: "error" })));
     }, 500);
+  };
+
+  const toggleTagsPanel = (task: TaskCardData) => {
+    setTagsOpenId((prev) => (prev === task.id ? null : task.id));
+  };
+
+  // Extra people tagged on this task, beyond the Assignee above — the task
+  // then also shows up ("Also involves you") on each of their Interlocutor
+  // Hub pages. Doesn't touch assignee/interlocutorId/type at all.
+  const toggleTagged = (task: TaskCardData, interlocutorId: string) => {
+    const current = task.additionalInterlocutorIds ?? [];
+    const next = current.includes(interlocutorId)
+      ? current.filter((v) => v !== interlocutorId)
+      : [...current, interlocutorId];
+    setOverrides((prev) => ({ ...prev, [task.id]: { ...prev[task.id], additionalInterlocutorIds: next } }));
+    setTagStatus((prev) => ({ ...prev, [task.id]: "saving" }));
+    patchTask(task.id, { interlocutorIds: next })
+      .then(() => setTagStatus((prev) => ({ ...prev, [task.id]: "saved" })))
+      .catch(() => setTagStatus((prev) => ({ ...prev, [task.id]: "error" })));
   };
 
   const startEditingTitle = (task: TaskCardData) => {
@@ -525,6 +548,21 @@ export function MyToDoView({
                         </button>
                         <button
                           type="button"
+                          onClick={() => toggleTagsPanel(task)}
+                          title="Tag other people this task also involves"
+                          className={`relative rounded-md border px-2 py-1 text-xs font-medium ${
+                            tagsOpenId === task.id
+                              ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300"
+                          }`}
+                        >
+                          👥
+                          {task.additionalInterlocutorIds?.length > 0 && tagsOpenId !== task.id && (
+                            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-indigo-500" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => deleteTask(task)}
                           title="Delete this task"
                           className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-rose-500 hover:border-rose-300 hover:bg-rose-50"
@@ -545,6 +583,38 @@ export function MyToDoView({
                             {notesStatus[task.id] === "saving" && "Saving…"}
                             {notesStatus[task.id] === "saved" && "Saved"}
                             {notesStatus[task.id] === "error" && <span className="text-rose-500">Failed to save</span>}
+                          </p>
+                        </div>
+                      )}
+                      {tagsOpenId === task.id && (
+                        <div className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {interlocutors.length === 0 && (
+                              <p className="text-xs text-slate-400">No interlocutors yet.</p>
+                            )}
+                            {interlocutors.map((i) => {
+                              const checked = (task.additionalInterlocutorIds ?? []).includes(i.id);
+                              return (
+                                <button
+                                  key={i.id}
+                                  type="button"
+                                  onClick={() => toggleTagged(task, i.id)}
+                                  className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+                                    checked
+                                      ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                                      : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300"
+                                  }`}
+                                >
+                                  {checked ? "✓ " : ""}
+                                  {i.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {tagStatus[task.id] === "saving" && "Saving…"}
+                            {tagStatus[task.id] === "saved" && "Saved — also shows on their pages now"}
+                            {tagStatus[task.id] === "error" && <span className="text-rose-500">Failed to save</span>}
                           </p>
                         </div>
                       )}

@@ -2,8 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { tasks, interlocutors } from "@/db/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { tasks, interlocutors, taskInterlocutors } from "@/db/schema";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import { ProductHub, type ProductId, type ProductTask } from "@/components/dashboard/cr-task-dashboard/ProductHub";
 import { MOCK_PRODUCT_TASKS } from "@/lib/mock-cr-data";
 
@@ -33,6 +33,15 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
       .from(tasks)
       .where(and(eq(tasks.productId, typedProductId), ne(tasks.assignee, "Me")));
 
+    const allIds = [...mineRows, ...theirsRows].map((r) => r.id);
+    const tagRows = allIds.length > 0
+      ? await db.select().from(taskInterlocutors).where(inArray(taskInterlocutors.taskId, allIds))
+      : [];
+    const tagsByTask: Record<string, string[]> = {};
+    for (const t of tagRows) {
+      (tagsByTask[t.taskId] ??= []).push(t.interlocutorId);
+    }
+
     const toCard = (r: typeof mineRows[number]): ProductTask => ({
       id: r.id,
       title: r.title,
@@ -44,6 +53,7 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
       priority: r.priority,
       delegatedTo: r.delegatedTo,
       notes: r.notes,
+      additionalInterlocutorIds: tagsByTask[r.id] ?? [],
       crSourceTitle: r.crSourceTitle,
       crDate: r.crDate.toISOString().slice(0, 10),
     });

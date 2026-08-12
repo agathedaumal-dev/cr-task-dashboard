@@ -31,6 +31,7 @@ export interface FollowUpTask {
   status: "To Do" | "In Progress" | "Blocked" | "Done";
   delegatedTo: string | null;
   notes: string | null;
+  additionalInterlocutorIds: string[];
   crSourceTitle: string;
   crDate: string;
 }
@@ -42,6 +43,27 @@ export interface DelegatedInTask {
   id: string;
   delegateeId: string; // the interlocutor this was delegated to
   ownerLabel: string; // display name of whoever still owns/follows it (e.g. "Agathe")
+  title: string;
+  productId: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
+  type: "my-todo" | "i-owe-them" | "they-owe-me" | "we-follow-together";
+  assignee: string;
+  priority: "High" | "Medium" | "Low";
+  dueDate: string | null;
+  status: "To Do" | "In Progress" | "Blocked" | "Done";
+  notes: string | null;
+  additionalInterlocutorIds: string[];
+  crSourceTitle: string;
+  crDate: string;
+}
+
+// A task tagged with this interlocutor as an *extra* participant (beyond
+// its real assignee/interlocutorId owner). Read-only here — editing happens
+// only via the primary owner's TaskEditModal, since this join is purely
+// additive ("also involves"), not a second ownership record.
+export interface TaggedInTask {
+  id: string;
+  taggedInterlocutorId: string;
+  ownerLabel: string; // display name of whoever actually owns/follows it
   title: string;
   productId: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
   type: "my-todo" | "i-owe-them" | "they-owe-me" | "we-follow-together";
@@ -92,10 +114,12 @@ export function InterlocutorHub({
   interlocutors,
   tasks,
   delegatedTasks = [],
+  taggedTasks = [],
 }: {
   interlocutors: InterlocutorData[];
   tasks: FollowUpTask[];
   delegatedTasks?: DelegatedInTask[];
+  taggedTasks?: TaggedInTask[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -166,6 +190,11 @@ export function InterlocutorHub({
     [delegatedTasks, deletedIds]
   );
 
+  const effectiveTaggedTasks = useMemo(
+    () => taggedTasks.filter((t) => !deletedIds.has(t.id)),
+    [taggedTasks, deletedIds]
+  );
+
   const moveTask = (taskId: string, newType: FollowUpType) => {
     const task = effectiveTasks.find((t) => t.id === taskId);
     if (!task || task.type === newType) return;
@@ -211,6 +240,11 @@ export function InterlocutorHub({
   const withOwnerPrefix = (t: FollowUpTask) =>
     isTeam ? { ...t, title: `[${nameById[t.interlocutorId] ?? "?"}] ${t.title}` } : t;
 
+  // Same idea for "Also involves you" cards — on a team page, prefix with
+  // whichever member was tagged, since the section is shared across them.
+  const withTaggedPrefix = (t: TaggedInTask) =>
+    isTeam ? { ...t, title: `[${nameById[t.taggedInterlocutorId] ?? "?"}] ${t.title}` } : t;
+
   const applyStatusFilter = <T extends { status: FollowUpTask["status"] }>(list: T[]) => {
     if (statusFilter === "All") return list;
     if (statusFilter === "AllButDone") return list.filter((t) => t.status !== "Done");
@@ -233,6 +267,12 @@ export function InterlocutorHub({
   // team member the task was actually delegated to.
   const delegatedIn = applyStatusFilter(effectiveDelegatedTasks.filter((t) => visibleMemberIdSet.has(t.delegateeId)));
 
+  // Read-only "also tagged" tasks for this person/team, same status filter
+  // as everything else on the page.
+  const taggedIn = applyStatusFilter(
+    effectiveTaggedTasks.filter((t) => visibleMemberIdSet.has(t.taggedInterlocutorId))
+  ).map(withTaggedPrefix);
+
   // Plain-text bullet list of this person/team's outstanding work — for
   // pasting into a Slack message or a 1:1 doc before a meeting. Mirrors
   // whatever's currently on screen (the four lists above, which already
@@ -247,9 +287,10 @@ export function InterlocutorHub({
     if (theyOweMe.length > 0) sections.push(`What they owe me:\n${theyOweMe.map(bullet).join("\n")}`);
     if (weFollowTogether.length > 0) sections.push(`What we follow together:\n${weFollowTogether.map(bullet).join("\n")}`);
     if (delegatedIn.length > 0) sections.push(`Delegated to them:\n${delegatedIn.map(bullet).join("\n")}`);
+    if (taggedIn.length > 0) sections.push(`Also involves them:\n${taggedIn.map(bullet).join("\n")}`);
 
     return sections.length > 0 ? sections.join("\n\n") : "Nothing matches the current filters.";
-  }, [iOweThem, theyOweMe, weFollowTogether, delegatedIn]);
+  }, [iOweThem, theyOweMe, weFollowTogether, delegatedIn, taggedIn]);
 
   const copyBulletList = async () => {
     try {
@@ -275,6 +316,7 @@ export function InterlocutorHub({
         dueDate: openFollowUp.dueDate,
         delegatedTo: openFollowUp.delegatedTo,
         notes: openFollowUp.notes,
+        additionalInterlocutorIds: openFollowUp.additionalInterlocutorIds,
         crSourceTitle: openFollowUp.crSourceTitle,
         crDate: openFollowUp.crDate,
       }
@@ -290,6 +332,7 @@ export function InterlocutorHub({
           dueDate: openDelegated.dueDate,
           delegatedTo: openDelegated.delegateeId,
           notes: openDelegated.notes,
+          additionalInterlocutorIds: openDelegated.additionalInterlocutorIds,
           crSourceTitle: openDelegated.crSourceTitle,
           crDate: openDelegated.crDate,
         }
@@ -489,6 +532,40 @@ export function InterlocutorHub({
                         </div>
                         <p className="mt-1 text-xs text-slate-400">
                           Still followed by {task.ownerLabel} · Due {task.dueDate ?? "TBD"} · from{" "}
+                          <span className="italic">{task.crSourceTitle}</span> ({task.crDate}){" "}
+                          {task.notes && <span title="Has notes">📝</span>}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {taggedIn.length > 0 && (
+                <section className="rounded-2xl border border-slate-200 bg-indigo-50/40 p-4">
+                  <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Also involves {isTeam ? "them" : selectedEntry.label}{" "}
+                    <span className="text-slate-400">({taggedIn.length})</span>
+                  </h2>
+                  <p className="mb-2 text-xs text-slate-400">
+                    Read-only — tagged as an extra participant. Edit on the primary owner's page.
+                  </p>
+                  <div className="space-y-2">
+                    {taggedIn.map((task) => (
+                      <div
+                        key={`${task.id}-${task.taggedInterlocutorId}`}
+                        className="rounded-xl border border-indigo-100 bg-white/70 px-3 py-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-slate-600">{task.title}</p>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status]}`}
+                          >
+                            {task.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Owned by {task.ownerLabel} · Due {task.dueDate ?? "TBD"} · from{" "}
                           <span className="italic">{task.crSourceTitle}</span> ({task.crDate}){" "}
                           {task.notes && <span title="Has notes">📝</span>}
                         </p>

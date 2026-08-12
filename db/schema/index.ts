@@ -22,7 +22,7 @@ export const tickets = pgTable("tickets", {
 
 // --- CR Task Dashboard tables (added for the Meeting CR -> Task pipeline) ---
 
-import { pgEnum, uuid, boolean } from "drizzle-orm/pg-core";
+import { pgEnum, uuid, boolean, primaryKey } from "drizzle-orm/pg-core";
 
 export const productIdEnum = pgEnum("product_id", [
   "carbon-comp-fr",
@@ -115,6 +115,25 @@ export const tasks = pgTable("cr_tasks", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Extra interlocutors tagged on a task, beyond its primary owner
+// (assignee/interlocutorId, which is unaffected by this table). Lets a task
+// like "organize a joint session with Sarah, Eduardo and Calindé" show up on
+// all three of their Interlocutor Hub pages ("Also involves you" section)
+// without changing who actually owns/drives it. Purely additive — deleting
+// a row here never deletes the task or changes its type/column.
+export const taskInterlocutors = pgTable(
+  "task_interlocutors",
+  {
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    interlocutorId: uuid("interlocutor_id")
+      .notNull()
+      .references(() => interlocutors.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.interlocutorId] })]
+);
 
 // Single global scratchpad note — deliberately NOT tied to any task, so
 // jotting a thought down never touches task/progress data. Always exactly one
