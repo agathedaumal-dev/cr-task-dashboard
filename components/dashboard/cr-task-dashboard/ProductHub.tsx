@@ -36,7 +36,7 @@ const STATUS_STYLES: Record<ProductTask["status"], string> = {
   Done: "bg-emerald-100 text-emerald-700",
 };
 
-const STATUS_OPTIONS: (ProductTask["status"] | "All")[] = ["All", "To Do", "In Progress", "Blocked", "Done"];
+const STATUS_OPTIONS: (ProductTask["status"] | "All" | "AllButDone")[] = ["All", "AllButDone", "To Do", "In Progress", "Blocked", "Done"];
 
 async function patchTask(id: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/tasks/${id}`, {
@@ -64,7 +64,7 @@ export function ProductHub({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const meta = PRODUCT_META[productId];
-  const [statusFilter, setStatusFilter] = useState<ProductTask["status"] | "All">("All");
+  const [statusFilter, setStatusFilter] = useState<ProductTask["status"] | "All" | "AllButDone">("All");
   const [overrides, setOverrides] = useState<Record<string, Partial<ProductTask>>>({});
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
@@ -73,8 +73,11 @@ export function ProductHub({
     [myTasks, interlocutorTasks, overrides]
   );
 
-  const applyFilter = (list: ProductTask[]) =>
-    statusFilter === "All" ? list : list.filter((t) => t.status === statusFilter);
+  const applyFilter = (list: ProductTask[]) => {
+    if (statusFilter === "All") return list;
+    if (statusFilter === "AllButDone") return list.filter((t) => t.status !== "Done");
+    return list.filter((t) => t.status === statusFilter);
+  };
 
   const filteredMine = applyFilter(allTasks.filter((t) => t.assignee === "Me"));
   const filteredTheirs = applyFilter(allTasks.filter((t) => t.assignee !== "Me"));
@@ -116,7 +119,7 @@ export function ProductHub({
         >
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
-              {s === "All" ? "All statuses" : s}
+              {s === "All" ? "All statuses" : s === "AllButDone" ? "All but Done" : s}
             </option>
           ))}
         </select>

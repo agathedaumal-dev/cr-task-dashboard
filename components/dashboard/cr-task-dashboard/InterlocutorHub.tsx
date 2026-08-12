@@ -69,7 +69,7 @@ const STATUS_STYLES: Record<FollowUpTask["status"], string> = {
   Done: "bg-emerald-100 text-emerald-700",
 };
 
-const STATUS_OPTIONS: (FollowUpTask["status"] | "All")[] = ["All", "To Do", "In Progress", "Blocked", "Done"];
+const STATUS_OPTIONS: (FollowUpTask["status"] | "All" | "AllButDone")[] = ["All", "AllButDone", "To Do", "In Progress", "Blocked", "Done"];
 
 async function patchTask(id: string, body: Record<string, unknown>) {
   const res = await fetch(`/api/tasks/${id}`, {
@@ -100,7 +100,7 @@ export function InterlocutorHub({
   const [, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<FollowUpTask["status"] | "All">("All");
+  const [statusFilter, setStatusFilter] = useState<FollowUpTask["status"] | "All" | "AllButDone">("All");
   // Optimistic local overlay, same pattern as My To-Do, so a card visibly jumps
   // to its new column immediately instead of waiting for a full page refresh.
   const [overrides, setOverrides] = useState<Record<string, Partial<FollowUpTask>>>({});
@@ -186,8 +186,11 @@ export function InterlocutorHub({
   const withOwnerPrefix = (t: FollowUpTask) =>
     isTeam ? { ...t, title: `[${nameById[t.interlocutorId] ?? "?"}] ${t.title}` } : t;
 
-  const applyStatusFilter = (list: FollowUpTask[]) =>
-    statusFilter === "All" ? list : list.filter((t) => t.status === statusFilter);
+  const applyStatusFilter = <T extends { status: FollowUpTask["status"] }>(list: T[]) => {
+    if (statusFilter === "All") return list;
+    if (statusFilter === "AllButDone") return list.filter((t) => t.status !== "Done");
+    return list.filter((t) => t.status === statusFilter);
+  };
 
   const iOweThem = applyStatusFilter(
     effectiveTasks.filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "i-owe-them")
@@ -199,36 +202,27 @@ export function InterlocutorHub({
     effectiveTasks.filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "we-follow-together")
   ).map(withOwnerPrefix);
 
-  const delegatedIn = delegatedTasks.filter((t) => memberIdSet.has(t.delegateeId));
+  // Delegated-in tasks now respect the same status filter as the three
+  // columns above, so the dropdown consistently controls the whole page.
+  const delegatedIn = applyStatusFilter(delegatedTasks.filter((t) => memberIdSet.has(t.delegateeId)));
 
   // Plain-text bullet list of this person/team's outstanding work — for
-  // pasting into a Slack message or a 1:1 doc before a meeting. Always
-  // built from every active (non-Done) task regardless of the status
-  // filter above, since "what do I need to bring up with them" usually
-  // means everything outstanding, not just whatever's currently filtered.
+  // pasting into a Slack message or a 1:1 doc before a meeting. Mirrors
+  // whatever's currently on screen (the four lists above, which already
+  // have the status filter applied), not a separate fixed "everything
+  // active" set.
   const bulletListText = useMemo(() => {
     const bullet = (t: { title: string; dueDate: string | null; status: FollowUpTask["status"] }) =>
       `- ${t.title}${t.dueDate ? ` (due ${t.dueDate})` : ""}${t.status !== "To Do" ? ` [${t.status}]` : ""}`;
 
-    const activeIOweThem = effectiveTasks.filter(
-      (t) => memberIdSet.has(t.interlocutorId) && t.type === "i-owe-them" && t.status !== "Done"
-    );
-    const activeTheyOweMe = effectiveTasks.filter(
-      (t) => memberIdSet.has(t.interlocutorId) && t.type === "they-owe-me" && t.status !== "Done"
-    );
-    const activeWeFollow = effectiveTasks.filter(
-      (t) => memberIdSet.has(t.interlocutorId) && t.type === "we-follow-together" && t.status !== "Done"
-    );
-    const activeDelegated = delegatedIn.filter((t) => t.status !== "Done");
-
     const sections: string[] = [];
-    if (activeIOweThem.length > 0) sections.push(`What I owe them:\n${activeIOweThem.map(bullet).join("\n")}`);
-    if (activeTheyOweMe.length > 0) sections.push(`What they owe me:\n${activeTheyOweMe.map(bullet).join("\n")}`);
-    if (activeWeFollow.length > 0) sections.push(`What we follow together:\n${activeWeFollow.map(bullet).join("\n")}`);
-    if (activeDelegated.length > 0) sections.push(`Delegated to them:\n${activeDelegated.map(bullet).join("\n")}`);
+    if (iOweThem.length > 0) sections.push(`What I owe them:\n${iOweThem.map(bullet).join("\n")}`);
+    if (theyOweMe.length > 0) sections.push(`What they owe me:\n${theyOweMe.map(bullet).join("\n")}`);
+    if (weFollowTogether.length > 0) sections.push(`What we follow together:\n${weFollowTogether.map(bullet).join("\n")}`);
+    if (delegatedIn.length > 0) sections.push(`Delegated to them:\n${delegatedIn.map(bullet).join("\n")}`);
 
-    return sections.length > 0 ? sections.join("\n\n") : "Nothing outstanding right now.";
-  }, [effectiveTasks, delegatedIn, memberIdSet]);
+    return sections.length > 0 ? sections.join("\n\n") : "Nothing matches the current filters.";
+  }, [iOweThem, theyOweMe, weFollowTogether, delegatedIn]);
 
   const copyBulletList = async () => {
     try {
@@ -329,7 +323,7 @@ export function InterlocutorHub({
                 >
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
-                      {s === "All" ? "All statuses" : s}
+                      {s === "All" ? "All statuses" : s === "AllButDone" ? "All but Done" : s}
                     </option>
                   ))}
                 </select>
@@ -349,7 +343,7 @@ export function InterlocutorHub({
               <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                    Bullet-point summary — select all &amp; copy, or use the button
+                    Matches your current status filter — select all &amp; copy, or use the button
                   </p>
                   <button
                     onClick={copyBulletList}

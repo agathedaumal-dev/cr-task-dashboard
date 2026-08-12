@@ -86,7 +86,7 @@ export function MyToDoView({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [priorityFilter, setPriorityFilter] = useState<"All" | TaskCardData["priority"]>("All");
-  const [statusFilter, setStatusFilter] = useState<"All" | TaskCardData["status"]>("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "AllButDone" | TaskCardData["status"]>("All");
   const [search, setSearch] = useState("");
   // Optimistic local overlay so the UI feels instant while the PATCH is in flight.
   const [overrides, setOverrides] = useState<Record<string, Partial<TaskCardData>>>({});
@@ -211,7 +211,9 @@ export function MyToDoView({
     return effectiveTasks.filter((t) => {
       // "All statuses" naturally means "everything still active" — Done
       // tasks stay out of the way unless you explicitly pick "Done" below.
-      if (statusFilter === "All") {
+      // "All but Done" does the same thing but as an explicit, named choice
+      // rather than an implicit default.
+      if (statusFilter === "All" || statusFilter === "AllButDone") {
         if (t.status === "Done") return false;
       } else if (t.status !== statusFilter) {
         return false;
@@ -225,17 +227,19 @@ export function MyToDoView({
   const grouped = useMemo(() => groupTasksByBucket(filtered), [filtered]);
 
   const fullListText = useMemo(() => {
-    const active = effectiveTasks.filter((t) => t.status !== "Done");
-    const byBucket = groupTasksByBucket(active);
+    // Mirrors exactly what's on screen right now — `grouped` is already
+    // built from `filtered`, which applies the status/priority/search
+    // filters above. Copying should reflect what you just filtered to, not
+    // a separate fixed "everything active" list.
     const bullet = (t: TaskCardData) =>
       `- ${t.title} [${t.productId}]${t.dueDate ? ` (due ${t.dueDate})` : ""}${
         t.status !== "To Do" ? ` [${t.status}]` : ""
       }${t.delegatedTo ? ` (delegated → ${nameById[t.delegatedTo] ?? "?"})` : ""}`;
-    const sections = BUCKET_ORDER.filter((b) => byBucket[b].length > 0).map(
-      (b) => `${b}:\n${byBucket[b].map(bullet).join("\n")}`
+    const sections = BUCKET_ORDER.filter((b) => grouped[b].length > 0).map(
+      (b) => `${b}:\n${grouped[b].map(bullet).join("\n")}`
     );
-    return sections.length > 0 ? sections.join("\n\n") : "Nothing outstanding right now.";
-  }, [effectiveTasks, nameById]);
+    return sections.length > 0 ? sections.join("\n\n") : "Nothing matches the current filters.";
+  }, [grouped, nameById]);
 
   const copyFullList = async () => {
     try {
@@ -265,6 +269,7 @@ export function MyToDoView({
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-indigo-300 focus:outline-none"
           >
             <option value="All">All statuses (excl. Done)</option>
+            <option value="AllButDone">All but Done</option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -297,7 +302,7 @@ export function MyToDoView({
         <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-              Every active task, regardless of the filters above — paste this to Claude to sync what's already tracked
+              Matches your current filters above — paste this to Claude to sync what's tracked
             </p>
             <button
               onClick={copyFullList}
