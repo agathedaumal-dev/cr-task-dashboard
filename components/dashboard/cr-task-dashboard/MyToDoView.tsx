@@ -107,6 +107,8 @@ export function MyToDoView({
     () => interlocutors.find((i) => i.name.toLowerCase().startsWith("calind")),
     [interlocutors]
   );
+  const [copyPanelOpen, setCopyPanelOpen] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   const effectiveTasks = useMemo(
     () => tasks.map((t) => ({ ...t, ...overrides[t.id] })),
@@ -193,6 +195,29 @@ export function MyToDoView({
 
   const grouped = useMemo(() => groupTasksByBucket(filtered), [filtered]);
 
+  const fullListText = useMemo(() => {
+    const active = effectiveTasks.filter((t) => t.status !== "Done");
+    const byBucket = groupTasksByBucket(active);
+    const bullet = (t: TaskCardData) =>
+      `- ${t.title} [${t.productId}]${t.dueDate ? ` (due ${t.dueDate})` : ""}${
+        t.status !== "To Do" ? ` [${t.status}]` : ""
+      }${t.delegatedTo ? ` (delegated → ${nameById[t.delegatedTo] ?? "?"})` : ""}`;
+    const sections = BUCKET_ORDER.filter((b) => byBucket[b].length > 0).map(
+      (b) => `${b}:\n${byBucket[b].map(bullet).join("\n")}`
+    );
+    return sections.length > 0 ? sections.join("\n\n") : "Nothing outstanding right now.";
+  }, [effectiveTasks, nameById]);
+
+  const copyFullList = async () => {
+    try {
+      await navigator.clipboard.writeText(fullListText);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+    setTimeout(() => setCopyState("idle"), 2000);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -227,8 +252,40 @@ export function MyToDoView({
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
           </select>
+          <button
+            onClick={() => {
+              setCopyPanelOpen((v) => !v);
+              setCopyState("idle");
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-indigo-300"
+          >
+            📋 Copy full to-do list
+          </button>
         </div>
       </header>
+
+      {copyPanelOpen && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              Every active task, regardless of the filters above — paste this to Claude to sync what's already tracked
+            </p>
+            <button
+              onClick={copyFullList}
+              className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+            >
+              {copyState === "copied" ? "Copied ✓" : copyState === "failed" ? "Copy failed — select manually" : "Copy"}
+            </button>
+          </div>
+          <textarea
+            readOnly
+            value={fullListText}
+            onFocus={(e) => e.currentTarget.select()}
+            rows={Math.min(18, Math.max(4, fullListText.split("\n").length))}
+            className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-sm text-slate-700 focus:outline-none"
+          />
+        </div>
+      )}
 
       {errorMsg && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
