@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AddInterlocutorForm } from "./AddInterlocutorForm";
 import { TaskEditModal, type EditableTask, type InterlocutorOption } from "./TaskEditModal";
@@ -102,6 +102,10 @@ export function InterlocutorHub({
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<FollowUpTask["status"] | "All" | "AllButDone">("All");
+  // Only meaningful on a shared team page (e.g. "Customer Care MRH") — lets
+  // you narrow the four sections down to one specific member instead of
+  // seeing everyone's tasks mixed together.
+  const [personFilter, setPersonFilter] = useState<string>("All");
   // Optimistic local overlay, same pattern as My To-Do, so a card visibly jumps
   // to its new column immediately instead of waiting for a full page refresh.
   const [overrides, setOverrides] = useState<Record<string, Partial<FollowUpTask>>>({});
@@ -183,6 +187,19 @@ export function InterlocutorHub({
   const memberIdSet = new Set(selectedEntry?.memberIds ?? []);
   const isTeam = (selectedEntry?.memberIds.length ?? 0) > 1;
 
+  // A stale personFilter from a previous team (e.g. still set to "Dylan
+  // Rybstein" after switching to a different team) would silently show
+  // nothing — reset it whenever the selected page changes.
+  useEffect(() => {
+    setPersonFilter("All");
+  }, [effectiveSelectedKey]);
+
+  // On a team page, narrow memberIdSet down to just the one person picked
+  // in the filter below; on a solo page (or "All" on a team page) this is
+  // identical to memberIdSet.
+  const visibleMemberIdSet =
+    isTeam && personFilter !== "All" ? new Set([personFilter]) : memberIdSet;
+
   // Prefix a task's title with the owner's name only when viewing a team page
   // (an ungrouped person's own page doesn't need their name repeated).
   const withOwnerPrefix = (t: FollowUpTask) =>
@@ -195,18 +212,20 @@ export function InterlocutorHub({
   };
 
   const iOweThem = applyStatusFilter(
-    effectiveTasks.filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "i-owe-them")
+    effectiveTasks.filter((t) => visibleMemberIdSet.has(t.interlocutorId) && t.type === "i-owe-them")
   ).map(withOwnerPrefix);
   const theyOweMe = applyStatusFilter(
-    effectiveTasks.filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "they-owe-me")
+    effectiveTasks.filter((t) => visibleMemberIdSet.has(t.interlocutorId) && t.type === "they-owe-me")
   ).map(withOwnerPrefix);
   const weFollowTogether = applyStatusFilter(
-    effectiveTasks.filter((t) => memberIdSet.has(t.interlocutorId) && t.type === "we-follow-together")
+    effectiveTasks.filter((t) => visibleMemberIdSet.has(t.interlocutorId) && t.type === "we-follow-together")
   ).map(withOwnerPrefix);
 
   // Delegated-in tasks now respect the same status filter as the three
   // columns above, so the dropdown consistently controls the whole page.
-  const delegatedIn = applyStatusFilter(delegatedTasks.filter((t) => memberIdSet.has(t.delegateeId)));
+  // Filtered by delegateeId rather than interlocutorId — it's whichever
+  // team member the task was actually delegated to.
+  const delegatedIn = applyStatusFilter(delegatedTasks.filter((t) => visibleMemberIdSet.has(t.delegateeId)));
 
   // Plain-text bullet list of this person/team's outstanding work — for
   // pasting into a Slack message or a 1:1 doc before a meeting. Mirrors
@@ -318,6 +337,20 @@ export function InterlocutorHub({
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {isTeam && (
+                  <select
+                    value={personFilter}
+                    onChange={(e) => setPersonFilter(e.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-indigo-300 focus:outline-none"
+                  >
+                    <option value="All">Everyone on this page</option>
+                    {selectedEntry.memberIds.map((id) => (
+                      <option key={id} value={id}>
+                        {nameById[id] ?? id}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
@@ -472,7 +505,13 @@ export function InterlocutorHub({
           // Solo page → default to that person (most tasks here are
           // "they owe me"); team page → default to "Me", pick the right
           // member from the Assignee dropdown instead of guessing.
-          defaultAssignee={!isTeam && selectedEntry ? selectedEntry.memberIds[0] : "Me"}
+          defaultAssignee={
+            !isTeam && selectedEntry
+              ? selectedEntry.memberIds[0]
+              : isTeam && personFilter !== "All"
+                ? personFilter
+                : "Me"
+          }
           defaultType="they-owe-me"
           onClose={() => setAddTaskOpen(false)}
           onCreated={() => startTransition(() => router.refresh())}
