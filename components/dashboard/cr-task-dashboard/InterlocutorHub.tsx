@@ -106,6 +106,14 @@ async function patchTask(id: string, body: Record<string, unknown>) {
   }
 }
 
+async function deleteTaskRequest(id: string) {
+  const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: "unknown error" }));
+    throw new Error(error ?? "Failed to delete task");
+  }
+}
+
 // Drag-and-drop payload — a custom MIME type so we don't collide with drags
 // originating from elsewhere on the page (e.g. text selection).
 const DRAG_MIME = "application/x-cr-task-id";
@@ -350,6 +358,24 @@ export function InterlocutorHub({
     startTransition(() => router.refresh());
   };
 
+  // Inline delete straight from a card (columns or the delegated-in section),
+  // without opening the modal first — same confirm-then-optimistic-remove
+  // pattern as My To-Do's bin button.
+  const deleteTaskInline = (task: { id: string; title: string }) => {
+    if (!window.confirm(`Delete "${task.title}"? This can't be undone.`)) return;
+    setDeletedIds((prev) => new Set(prev).add(task.id));
+    deleteTaskRequest(task.id)
+      .then(() => startTransition(() => router.refresh()))
+      .catch((e) => {
+        window.alert(e.message);
+        setDeletedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(task.id);
+          return next;
+        });
+      });
+  };
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside className="w-72 border-r border-slate-200 bg-white p-4">
@@ -481,6 +507,7 @@ export function InterlocutorHub({
                 onDragOverColumn={setDragOverColumn}
                 onDropTask={moveTask}
                 onOpen={setOpenTaskId}
+                onDelete={deleteTaskInline}
                 draggingId={draggingId}
                 setDraggingId={setDraggingId}
               />
@@ -493,6 +520,7 @@ export function InterlocutorHub({
                 onDragOverColumn={setDragOverColumn}
                 onDropTask={moveTask}
                 onOpen={setOpenTaskId}
+                onDelete={deleteTaskInline}
                 draggingId={draggingId}
                 setDraggingId={setDraggingId}
               />
@@ -505,6 +533,7 @@ export function InterlocutorHub({
                 onDragOverColumn={setDragOverColumn}
                 onDropTask={moveTask}
                 onOpen={setOpenTaskId}
+                onDelete={deleteTaskInline}
                 draggingId={draggingId}
                 setDraggingId={setDraggingId}
               />
@@ -520,15 +549,27 @@ export function InterlocutorHub({
                       <div
                         key={task.id}
                         onClick={() => setOpenTaskId(task.id)}
-                        className="cursor-pointer rounded-xl border border-slate-200 bg-white/70 px-3 py-2 hover:border-indigo-200"
+                        className="group relative cursor-pointer rounded-xl border border-slate-200 bg-white/70 px-3 py-2 hover:border-indigo-200"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-medium text-slate-500">{task.title}</p>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status]}`}
-                          >
-                            {task.status}
-                          </span>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status]}`}
+                            >
+                              {task.status}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteTaskInline(task);
+                              }}
+                              title="Delete task"
+                              className="rounded-md px-1 py-0.5 text-xs text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                            >
+                              🗑
+                            </button>
+                          </div>
                         </div>
                         <p className="mt-1 text-xs text-slate-400">
                           Still followed by {task.ownerLabel} · Due {task.dueDate ?? "TBD"} · from{" "}
@@ -621,6 +662,7 @@ function FollowUpColumn({
   onDragOverColumn,
   onDropTask,
   onOpen,
+  onDelete,
   draggingId,
   setDraggingId,
 }: {
@@ -633,6 +675,7 @@ function FollowUpColumn({
   onDragOverColumn: (type: FollowUpType | null) => void;
   onDropTask: (taskId: string, newType: FollowUpType) => void;
   onOpen: (id: string) => void;
+  onDelete: (task: FollowUpTask) => void;
   draggingId: string | null;
   setDraggingId: (id: string | null) => void;
 }) {
@@ -680,7 +723,7 @@ function FollowUpColumn({
                   // treat this as "open" when it wasn't a drag gesture.
                   if (draggingId !== task.id) onOpen(task.id);
                 }}
-                className={`cursor-grab active:cursor-grabbing ${
+                className={`group relative cursor-grab active:cursor-grabbing ${
                   compact
                     ? "rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
                     : "rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm"
@@ -696,9 +739,21 @@ function FollowUpColumn({
                   >
                     {task.title}
                   </p>
-                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${STATUS_STYLES[task.status]}`}>
-                    {task.status}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${STATUS_STYLES[task.status]}`}>
+                      {task.status}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(task);
+                      }}
+                      title="Delete task"
+                      className="rounded-md px-1 py-0.5 text-[10px] text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                    >
+                      🗑
+                    </button>
+                  </div>
                 </div>
                 {!compact && (
                   <p className="text-xs text-slate-400">

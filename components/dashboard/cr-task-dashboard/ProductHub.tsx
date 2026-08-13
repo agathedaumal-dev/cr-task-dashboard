@@ -51,6 +51,14 @@ async function patchTask(id: string, body: Record<string, unknown>) {
   }
 }
 
+async function deleteTaskRequest(id: string) {
+  const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: "unknown error" }));
+    throw new Error(error ?? "Failed to delete task");
+  }
+}
+
 export function ProductHub({
   productId,
   myTasks,
@@ -124,6 +132,23 @@ export function ProductHub({
     startTransition(() => router.refresh());
   };
 
+  // Inline delete straight from a card, without opening the modal first —
+  // same confirm-then-optimistic-remove pattern as My To-Do's bin button.
+  const deleteTaskInline = (task: ProductTask) => {
+    if (!window.confirm(`Delete "${task.title}"? This can't be undone.`)) return;
+    setDeletedIds((prev) => new Set(prev).add(task.id));
+    deleteTaskRequest(task.id)
+      .then(() => startTransition(() => router.refresh()))
+      .catch((e) => {
+        window.alert(e.message);
+        setDeletedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(task.id);
+          return next;
+        });
+      });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -144,8 +169,8 @@ export function ProductHub({
       </header>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <TaskColumn title="My tasks" tasks={filteredMine} onOpen={setOpenTaskId} nameById={nameById} />
-        <TaskColumn title="Interlocutors' tasks" tasks={filteredTheirs} showAssignee onOpen={setOpenTaskId} nameById={nameById} />
+        <TaskColumn title="My tasks" tasks={filteredMine} onOpen={setOpenTaskId} onDelete={deleteTaskInline} nameById={nameById} />
+        <TaskColumn title="Interlocutors' tasks" tasks={filteredTheirs} showAssignee onOpen={setOpenTaskId} onDelete={deleteTaskInline} nameById={nameById} />
       </div>
 
       {editableTask && (
@@ -166,12 +191,14 @@ function TaskColumn({
   tasks,
   showAssignee,
   onOpen,
+  onDelete,
   nameById,
 }: {
   title: string;
   tasks: ProductTask[];
   showAssignee?: boolean;
   onOpen: (id: string) => void;
+  onDelete: (task: ProductTask) => void;
   nameById: Record<string, string>;
 }) {
   return (
@@ -186,7 +213,7 @@ function TaskColumn({
             <div
               key={task.id}
               onClick={() => onOpen(task.id)}
-              className={`cursor-pointer rounded-xl border px-3 py-2 transition hover:border-indigo-200 hover:shadow-sm ${
+              className={`group relative cursor-pointer rounded-xl border px-3 py-2 transition hover:border-indigo-200 hover:shadow-sm ${
                 isDelegated ? "border-slate-200 bg-slate-100/70" : "border-slate-100 bg-slate-50/60"
               }`}
             >
@@ -194,9 +221,21 @@ function TaskColumn({
                 <p className={`text-sm font-medium ${isDelegated ? "text-slate-500" : "text-slate-800"}`}>
                   {task.title}
                 </p>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status]}`}>
-                  {task.status}
-                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status]}`}>
+                    {task.status}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(task);
+                    }}
+                    title="Delete task"
+                    className="rounded-md px-1 py-0.5 text-xs text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                  >
+                    🗑
+                  </button>
+                </div>
               </div>
               <p className="mt-1 text-xs text-slate-400">
                 {showAssignee ? `${task.assigneeName} · ` : ""}Due {task.dueDate ?? "TBD"} · {task.priority} · from{" "}
