@@ -22,6 +22,18 @@ export interface ProductTask {
   crDate: string;
 }
 
+// A non-actionable "big topic" discussed for this product — context,
+// background, or a decision worth remembering even though nothing concrete
+// was assigned to anyone. Read/delete only; written by the CR-to-SQL sweep.
+export interface ProductTopic {
+  id: string;
+  title: string;
+  details: string | null;
+  interlocutorId: string | null;
+  topicDate: string;
+  crSourceTitle: string;
+}
+
 const PRODUCT_META: Record<ProductId, { label: string; flag: string }> = {
   "carbon-comp-fr": { label: "Carbon Comp — France", flag: "🇫🇷" },
   "carbon-comp-sp": { label: "Carbon Comp — Spain", flag: "🇪🇸" },
@@ -59,16 +71,26 @@ async function deleteTaskRequest(id: string) {
   }
 }
 
+async function deleteTopicRequest(id: string) {
+  const res = await fetch(`/api/topics/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: "unknown error" }));
+    throw new Error(error ?? "Failed to delete topic");
+  }
+}
+
 export function ProductHub({
   productId,
   myTasks,
   interlocutorTasks,
   interlocutors,
+  topics = [],
 }: {
   productId: ProductId;
   myTasks: ProductTask[];
   interlocutorTasks: ProductTask[];
   interlocutors: InterlocutorOption[];
+  topics?: ProductTopic[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -77,6 +99,7 @@ export function ProductHub({
   const [overrides, setOverrides] = useState<Record<string, Partial<ProductTask>>>({});
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [deletedTopicIds, setDeletedTopicIds] = useState<Set<string>>(new Set());
 
   const allTasks = useMemo(
     () =>
@@ -149,6 +172,29 @@ export function ProductHub({
       });
   };
 
+  const effectiveTopics = useMemo(
+    () =>
+      topics
+        .filter((t) => !deletedTopicIds.has(t.id))
+        .sort((a, b) => (a.topicDate < b.topicDate ? 1 : -1)),
+    [topics, deletedTopicIds]
+  );
+
+  const deleteTopicInline = (topic: ProductTopic) => {
+    if (!window.confirm(`Delete the topic "${topic.title}"? This can't be undone.`)) return;
+    setDeletedTopicIds((prev) => new Set(prev).add(topic.id));
+    deleteTopicRequest(topic.id)
+      .then(() => startTransition(() => router.refresh()))
+      .catch((e) => {
+        window.alert(e.message);
+        setDeletedTopicIds((prev) => {
+          const next = new Set(prev);
+          next.delete(topic.id);
+          return next;
+        });
+      });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -172,6 +218,46 @@ export function ProductHub({
         <TaskColumn title="My tasks" tasks={filteredMine} onOpen={setOpenTaskId} onDelete={deleteTaskInline} nameById={nameById} />
         <TaskColumn title="Interlocutors' tasks" tasks={filteredTheirs} showAssignee onOpen={setOpenTaskId} onDelete={deleteTaskInline} nameById={nameById} />
       </div>
+
+      {effectiveTopics.length > 0 && (
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-amber-50/30 p-4">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Topics <span className="text-slate-400">({effectiveTopics.length})</span>
+          </h2>
+          <p className="mb-2 text-xs text-slate-400">
+            Big-picture context from meetings and Slack — not action items, just what was discussed.
+          </p>
+          <div className="space-y-2">
+            {effectiveTopics.map((topic) => (
+              <div
+                key={topic.id}
+                className="group relative rounded-xl border border-amber-100 bg-white/70 px-3 py-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-700">{topic.title}</p>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="whitespace-nowrap text-xs text-slate-400">{topic.topicDate}</span>
+                    <button
+                      onClick={() => deleteTopicInline(topic)}
+                      title="Delete topic"
+                      className="rounded-md px-1 py-0.5 text-xs text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+                {topic.details && <p className="mt-1 text-xs text-slate-500">{topic.details}</p>}
+                <p className="mt-1 text-xs text-slate-400">
+                  {topic.interlocutorId && nameById[topic.interlocutorId] && (
+                    <>re: {nameById[topic.interlocutorId]} · </>
+                  )}
+                  from <span className="italic">{topic.crSourceTitle}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {editableTask && (
         <TaskEditModal

@@ -135,6 +135,28 @@ export const taskInterlocutors = pgTable(
   (t) => [primaryKey({ columns: [t.taskId, t.interlocutorId] })]
 );
 
+// Non-actionable context: a "big topic" discussed in a meeting or Slack
+// thread — background, decisions, or updates worth remembering even though
+// nothing concrete was assigned to anyone. Deliberately separate from
+// cr_tasks (which is action-item-only) so the to-do lists don't get diluted
+// with non-actionable notes. Always tied to a product; optionally tied to a
+// specific interlocutor when the topic is really about them (shows up on
+// their Interlocutor Hub page too, in addition to the product's page).
+export const topics = pgTable("topics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  // Longer optional context — the "what was actually said/decided", kept
+  // separate from the short title so cards can show a one-liner by default.
+  details: text("details"),
+  productId: productIdEnum("product_id").notNull(),
+  interlocutorId: uuid("interlocutor_id").references(() => interlocutors.id),
+  // The date the topic was actually discussed (meeting date / Slack message
+  // date) — distinct from createdAt, which is just when the row was written.
+  topicDate: timestamp("topic_date").notNull(),
+  crSourceTitle: text("cr_source_title").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Single global scratchpad note — deliberately NOT tied to any task, so
 // jotting a thought down never touches task/progress data. Always exactly one
 // row (the app upserts row id 'global' on save).

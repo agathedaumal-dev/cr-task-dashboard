@@ -76,6 +76,20 @@ export interface TaggedInTask {
   crDate: string;
 }
 
+// A non-actionable "big topic" discussed about this interlocutor — context,
+// background, or a decision worth remembering even though nothing concrete
+// was assigned. Read/delete only here; topics are written by the CR-to-SQL
+// sweep, not edited through the UI.
+export interface TopicData {
+  id: string;
+  title: string;
+  details: string | null;
+  productId: "carbon-comp-fr" | "carbon-comp-sp" | "carbon-comp-it" | "mrh" | "other";
+  interlocutorId: string | null;
+  topicDate: string;
+  crSourceTitle: string;
+}
+
 // A sidebar entry is either a single ungrouped person or a team of people who
 // share one page.
 interface SidebarEntry {
@@ -114,6 +128,14 @@ async function deleteTaskRequest(id: string) {
   }
 }
 
+async function deleteTopicRequest(id: string) {
+  const res = await fetch(`/api/topics/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const { error } = await res.json().catch(() => ({ error: "unknown error" }));
+    throw new Error(error ?? "Failed to delete topic");
+  }
+}
+
 // Drag-and-drop payload — a custom MIME type so we don't collide with drags
 // originating from elsewhere on the page (e.g. text selection).
 const DRAG_MIME = "application/x-cr-task-id";
@@ -123,11 +145,13 @@ export function InterlocutorHub({
   tasks,
   delegatedTasks = [],
   taggedTasks = [],
+  topics = [],
 }: {
   interlocutors: InterlocutorData[];
   tasks: FollowUpTask[];
   delegatedTasks?: DelegatedInTask[];
   taggedTasks?: TaggedInTask[];
+  topics?: TopicData[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -146,6 +170,7 @@ export function InterlocutorHub({
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [deletedTopicIds, setDeletedTopicIds] = useState<Set<string>>(new Set());
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [copyPanelOpen, setCopyPanelOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
@@ -202,6 +227,26 @@ export function InterlocutorHub({
     () => taggedTasks.filter((t) => !deletedIds.has(t.id)),
     [taggedTasks, deletedIds]
   );
+
+  const effectiveTopics = useMemo(
+    () => topics.filter((t) => !deletedTopicIds.has(t.id)),
+    [topics, deletedTopicIds]
+  );
+
+  const deleteTopicInline = (topic: TopicData) => {
+    if (!window.confirm(`Delete the topic "${topic.title}"? This can't be undone.`)) return;
+    setDeletedTopicIds((prev) => new Set(prev).add(topic.id));
+    deleteTopicRequest(topic.id)
+      .then(() => startTransition(() => router.refresh()))
+      .catch((e) => {
+        window.alert(e.message);
+        setDeletedTopicIds((prev) => {
+          const next = new Set(prev);
+          next.delete(topic.id);
+          return next;
+        });
+      });
+  };
 
   const moveTask = (taskId: string, newType: FollowUpType) => {
     const task = effectiveTasks.find((t) => t.id === taskId);
@@ -280,6 +325,19 @@ export function InterlocutorHub({
   const taggedIn = applyStatusFilter(
     effectiveTaggedTasks.filter((t) => visibleMemberIdSet.has(t.taggedInterlocutorId))
   ).map(withTaggedPrefix);
+
+  // Topics tied specifically to this person/team (interlocutorId matches),
+  // most recent first — not status-filtered, since topics have no status.
+  const personTopics = useMemo(
+    () =>
+      effectiveTopics
+        .filter((t) => t.interlocutorId && visibleMemberIdSet.has(t.interlocutorId))
+        .map((t) =>
+          isTeam ? { ...t, title: `[${nameById[t.interlocutorId!] ?? "?"}] ${t.title}` } : t
+        )
+        .sort((a, b) => (a.topicDate < b.topicDate ? 1 : -1)),
+    [effectiveTopics, visibleMemberIdSet, isTeam, nameById]
+  );
 
   // Plain-text bullet list of this person/team's outstanding work — for
   // pasting into a Slack message or a 1:1 doc before a meeting. Mirrors
@@ -609,6 +667,44 @@ export function InterlocutorHub({
                           Owned by {task.ownerLabel} · Due {task.dueDate ?? "TBD"} · from{" "}
                           <span className="italic">{task.crSourceTitle}</span> ({task.crDate}){" "}
                           {task.notes && <span title="Has notes">📝</span>}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {personTopics.length > 0 && (
+                <section className="rounded-2xl border border-slate-200 bg-amber-50/30 p-4">
+                  <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Topics {isTeam ? "" : `— ${selectedEntry.label}`}{" "}
+                    <span className="text-slate-400">({personTopics.length})</span>
+                  </h2>
+                  <p className="mb-2 text-xs text-slate-400">
+                    Big-picture context from meetings and Slack — not action items, just what was discussed.
+                  </p>
+                  <div className="space-y-2">
+                    {personTopics.map((topic) => (
+                      <div
+                        key={topic.id}
+                        className="group relative rounded-xl border border-amber-100 bg-white/70 px-3 py-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-slate-700">{topic.title}</p>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="whitespace-nowrap text-xs text-slate-400">{topic.topicDate}</span>
+                            <button
+                              onClick={() => deleteTopicInline(topic)}
+                              title="Delete topic"
+                              className="rounded-md px-1 py-0.5 text-xs text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-500 group-hover:opacity-100"
+                            >
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                        {topic.details && <p className="mt-1 text-xs text-slate-500">{topic.details}</p>}
+                        <p className="mt-1 text-xs text-slate-400">
+                          from <span className="italic">{topic.crSourceTitle}</span>
                         </p>
                       </div>
                     ))}

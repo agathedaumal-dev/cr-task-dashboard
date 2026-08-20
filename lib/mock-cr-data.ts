@@ -3,8 +3,8 @@
 // CRs in the original prep kit (samples/*.md).
 
 import type { TaskCardData } from "@/components/dashboard/cr-task-dashboard/MyToDoView";
-import type { InterlocutorData, FollowUpTask } from "@/components/dashboard/cr-task-dashboard/InterlocutorHub";
-import type { ProductTask } from "@/components/dashboard/cr-task-dashboard/ProductHub";
+import type { InterlocutorData, FollowUpTask, TopicData } from "@/components/dashboard/cr-task-dashboard/InterlocutorHub";
+import type { ProductTask, ProductTopic } from "@/components/dashboard/cr-task-dashboard/ProductHub";
 
 const today = new Date();
 const iso = (offsetDays: number) => {
@@ -63,4 +63,42 @@ export const MOCK_PRODUCT_TASKS: Record<string, { mine: ProductTask[]; theirs: P
     ],
   },
   other: { mine: [], theirs: [] },
+};
+
+export const MOCK_TOPICS: TopicData[] = [
+  {
+    id: "top1",
+    title: "Impayés trend discussed — stabilizing but still watched monthly",
+    details: "Julien flagged the trend is improving but wants a monthly check-in until it's confirmed.",
+    productId: "mrh",
+    interlocutorId: "julien",
+    topicDate: iso(-3),
+    crSourceTitle: "Point hebdo MRH - Groupe Habitat",
+  },
+];
+
+export const MOCK_PRODUCT_TOPICS: Record<string, ProductTopic[]> = {
+  "carbon-comp-fr": [],
+  "carbon-comp-sp": [
+    {
+      id: "top2",
+      title: "Spain pitch test volumes still too low to draw conclusions",
+      details: null,
+      interlocutorId: "marta",
+      topicDate: iso(-1),
+      crSourceTitle: "Seguimiento Carbon Comp España",
+    },
+  ],
+  "carbon-comp-it": [],
+  mrh: [
+    {
+      id: "top1",
+      title: "Impayés trend discussed — stabilizing but still watched monthly",
+      details: "Julien flagged the trend is improving but wants a monthly check-in until it's confirmed.",
+      interlocutorId: "julien",
+      topicDate: iso(-3),
+      crSourceTitle: "Point hebdo MRH - Groupe Habitat",
+    },
+  ],
+  other: [],
 };

@@ -2,10 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { tasks, interlocutors, taskInterlocutors } from "@/db/schema";
+import { tasks, interlocutors, taskInterlocutors, topics as topicsTable } from "@/db/schema";
 import { eq, and, ne, inArray } from "drizzle-orm";
-import { ProductHub, type ProductId, type ProductTask } from "@/components/dashboard/cr-task-dashboard/ProductHub";
-import { MOCK_PRODUCT_TASKS } from "@/lib/mock-cr-data";
+import { ProductHub, type ProductId, type ProductTask, type ProductTopic } from "@/components/dashboard/cr-task-dashboard/ProductHub";
+import { MOCK_PRODUCT_TASKS, MOCK_PRODUCT_TOPICS } from "@/lib/mock-cr-data";
 
 const VALID_PRODUCTS: ProductId[] = ["carbon-comp-fr", "carbon-comp-sp", "carbon-comp-it", "mrh", "other"];
 
@@ -17,6 +17,7 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
   let mine: ProductTask[] = MOCK_PRODUCT_TASKS[typedProductId]?.mine ?? [];
   let theirs: ProductTask[] = MOCK_PRODUCT_TASKS[typedProductId]?.theirs ?? [];
   let interlocutorOptions: { id: string; name: string }[] = [];
+  let topicsForProduct: ProductTopic[] = MOCK_PRODUCT_TOPICS[typedProductId] ?? [];
 
   if (db) {
     const knownInterlocutors = await db.select().from(interlocutors);
@@ -60,6 +61,19 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
 
     mine = mineRows.map(toCard);
     theirs = theirsRows.map(toCard);
+
+    const topicRows = await db
+      .select()
+      .from(topicsTable)
+      .where(eq(topicsTable.productId, typedProductId));
+    topicsForProduct = topicRows.map((t) => ({
+      id: t.id,
+      title: t.title,
+      details: t.details,
+      interlocutorId: t.interlocutorId,
+      topicDate: t.topicDate.toISOString().slice(0, 10),
+      crSourceTitle: t.crSourceTitle,
+    }));
   }
 
   return (
@@ -68,6 +82,7 @@ export default async function ProductHubPage({ params }: { params: Promise<{ pro
       myTasks={mine}
       interlocutorTasks={theirs}
       interlocutors={interlocutorOptions}
+      topics={topicsForProduct}
     />
   );
 }

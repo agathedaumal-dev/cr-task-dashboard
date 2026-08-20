@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { db } from "@/lib/db";
-import { interlocutors, tasks, taskInterlocutors } from "@/db/schema";
+import { interlocutors, tasks, taskInterlocutors, topics as topicsTable } from "@/db/schema";
 import { isNotNull, or, inArray } from "drizzle-orm";
 import {
   InterlocutorHub,
@@ -9,14 +9,16 @@ import {
   type FollowUpTask,
   type DelegatedInTask,
   type TaggedInTask,
+  type TopicData,
 } from "@/components/dashboard/cr-task-dashboard/InterlocutorHub";
-import { MOCK_INTERLOCUTORS, MOCK_FOLLOWUP_TASKS } from "@/lib/mock-cr-data";
+import { MOCK_INTERLOCUTORS, MOCK_FOLLOWUP_TASKS, MOCK_TOPICS } from "@/lib/mock-cr-data";
 
 export default async function InterlocutorsPage() {
   let people: InterlocutorData[] = MOCK_INTERLOCUTORS;
   let followUps: FollowUpTask[] = MOCK_FOLLOWUP_TASKS;
   let delegatedIn: DelegatedInTask[] = [];
   let taggedIn: TaggedInTask[] = [];
+  let topicsForHub: TopicData[] = MOCK_TOPICS;
 
   if (db) {
     const peopleRows = await db.select().from(interlocutors);
@@ -113,6 +115,17 @@ export default async function InterlocutorsPage() {
         };
       })
       .filter((t): t is TaggedInTask => t !== null);
+
+    const topicRows = await db.select().from(topicsTable);
+    topicsForHub = topicRows.map((t) => ({
+      id: t.id,
+      title: t.title,
+      details: t.details,
+      productId: t.productId,
+      interlocutorId: t.interlocutorId,
+      topicDate: t.topicDate.toISOString().slice(0, 10),
+      crSourceTitle: t.crSourceTitle,
+    }));
   }
 
   return (
@@ -121,6 +134,7 @@ export default async function InterlocutorsPage() {
       tasks={followUps}
       delegatedTasks={delegatedIn}
       taggedTasks={taggedIn}
+      topics={topicsForHub}
     />
   );
 }
